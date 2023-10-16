@@ -45,8 +45,8 @@ def init_db():
 
             # Insert data into your database table
             db.execute(
-                'INSERT INTO sub_account_items (item_type, sub_account_type, balance_sheet_account_type) VALUES (?, ?, ?)',
-                (column1, column2, column3)
+                'INSERT INTO sub_account_items (item_type, sub_account_type, balance_sheet_account_type, source) VALUES (?, ?, ?, ?)',
+                (column1, column2, column3, 0)
             )
         
         # Commit the changes to the database

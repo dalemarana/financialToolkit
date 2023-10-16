@@ -5,7 +5,6 @@ DROP TABLE IF EXISTS transactions;
 DROP TABLE IF EXISTS sub_account_items;
 DROP TABLE IF EXISTS user_sort;
 DROP TABLE IF EXISTS logs;
-DROP TABLE IF EXISTS user_accounts;
 
 
 CREATE TABLE users (
@@ -61,7 +60,8 @@ CREATE TABLE sub_account_items (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     item_type TEXT NOT NULL,
     sub_account_type TEXT NOT NULL,
-    balance_sheet_account_type TEXT NOT NULL
+    balance_sheet_account_type TEXT NOT NULL,
+    source INTEGER NOT NULL
 );
 
 CREATE TABLE user_sort (
@@ -83,12 +83,3 @@ CREATE TABLE logs (
     FOREIGN KEY (user_id) REFERENCES users (id)
 );
     
-
-CREATE TABLE user_accounts (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    account_name TEXT NOT NULL,
-    sub_account_item_id INTEGER,
-    FOREIGN KEY (user_id) REFERENCES users (id),
-    FOREIGN KEY (sub_account_item_id) REFERENCES sub_account_items (id)
-);

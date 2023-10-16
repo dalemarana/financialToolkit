@@ -24,7 +24,7 @@
                 <td class="{{ value }}" id="{{ value }}_{{ row['transaction_id'] }}">{{ row[value].replace("_", " ").capitalize() }}</td>
                 {% elif value == 'card_provider' %}
                 <td class="{{ value }}_" id="{{ value }}_{{ row['transaction_id'] }}">
-                    {{ row[value].replace("_", " ").capitalize() }}<br>
+                    {{ row[value].replace("_", " ") }}<br>
                     <small class="text-body-secondary">{{ row['card_type'].replace("_", " ").capitalize() }}</small>
                 </td>  
                 {% else %}

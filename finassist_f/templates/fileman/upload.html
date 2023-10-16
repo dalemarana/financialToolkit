@@ -20,7 +20,8 @@
                 <div class="row mb-3 mt-3">
                     <div class="col">
                         <label for="card_provider" class="form-label">Card Provider/Bank</label>
-                        <input class="form-control" type="text" name="card_provider" id="card_provider"  required>
+                        <input id="card_provider" name="card_provider" type="text" list="card_provider_suggest" aria-label="card provider" placeholder="Source of Payment" class="form-control cardprovider" style="font-size: small;text-transform: uppercase; display: block;" required>
+                        <datalist id="card_provider_suggest"></datalist>
                         <div class="valid-feedback"></div>
                         <div class="invalid-feedback">Please provide the name of the bank/card provider.</div>
                             </div>
@@ -94,12 +95,20 @@
                     </div>
                 </div>
             </div>
+        </div>
+        <div class="d-none">
+            <select id="card_provider_options" class="form-control">
+                {% for each in card_provider_set %}
+                <option value="{{ each }}">{{ each.replace("_", " ").capitalize() }}</option>
+                {% endfor %}
+            </select>                                    
         </div>        
         <div class="alert alert-primary mb-0 text-center d-none" role="alert">
             {{ get_flashed_messages() | join(" ") }}
         </div>
     </div>
 </div>
+<script src="../../static/js/card_provider_suggest.js" type="text/javascript"></script>
 <script src="../../static/js/file_upload_validation.js" type="text/javascript"></script>
 <script src="../../static/js/file_upload_feedback.js" type="text/javascript"></script>
 <script src="../../static/js/popper.js" type="text/javascript"></script>

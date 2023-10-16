@@ -14,6 +14,9 @@ from finassist_f.db import get_db
 # To be modified to become dynamic
 TABLE_HEADERS = ['transaction_date', 'transaction_info', 'item_type', 'sub_account_type', 'card_provider', 'transaction_amount']
 
+# Credit Positive List
+CREDIT_POSITIVE = ['equity', 'liabilities', 'revenue']
+
 # Allowed upload extensions
 ALLOWED_EXTENSIONS = {'pdf'}
 
@@ -47,7 +50,8 @@ def index():
     ).fetchall()
 
     all_types = db.execute(
-        'SELECT item_type FROM sub_account_items'
+        'SELECT item_type FROM sub_account_items WHERE source = 0'
+        ' UNION SELECT item_type FROM sub_account_items WHERE source = ?', (g.user['id'],)
     ).fetchall()
     all_item_types = []
     for row in all_types:
@@ -116,10 +120,25 @@ def update():
         ' ORDER BY transaction_date DESC', (g.user['id'], )
     ).fetchall()
 
-    print(transactions)
+    all_card_providers = db.execute(
+        'SELECT files.id AS file_id, filename, card_provider, card_type, '
+        ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
+        ' item_type, sub_account_type, balance_sheet_account_type'        
+        ' FROM transactions JOIN files ON transactions.file_id = files.id '
+        ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
+        ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
+        ' JOIN users ON log_sessions.user_id = users.id'
+        ' WHERE users.id = ?'
+        ' ORDER BY transaction_date DESC', (g.user['id'], )
+    ).fetchall()
+
+    all_card_provider_options = set([row['card_provider'] for row in all_card_providers])
+
+    #print(transactions)
     transaction_id_list = [row['transaction_id'] for row in transactions]
 
     card_provider_set = set([row['card_provider'] for row in transactions])
+    card_type_set = set([row['card_type'] for row in transactions])
     #print(card_provider_set)
 
     #Retrieve the payments made to this credit card
@@ -139,33 +158,57 @@ def update():
     
     payments_id_list = [row['transaction_id'] for row in payments]
 
-    
-    #print(payments_id_list)
+
+    card_provider = next(iter(card_provider_set))
+    card_type = (next(iter(card_type_set))).replace('_', ' ')
+
+    #print('{} {}'.format(card_provider, card_type))
+    # Retrieve the item_type of the card_provider
+    card_provider_item_type = db.execute(
+        'SELECT * FROM sub_account_items WHERE item_type LIKE ? AND source = ?',
+        ('{} {} %'.format(card_provider, card_type), g.user['id'])
+    ).fetchone()
+
+    # This is to provide credit card accounts or debit card accounts
+    payment_options = db.execute(
+        'SELECT * FROM sub_account_items WHERE sub_account_type = "cash" AND source = 0'
+        ' UNION SELECT * FROM sub_account_items WHERE sub_account_type = "account_payables" AND source = 0'
+        ' UNION SELECT * FROM sub_account_items WHERE sub_account_type = "cash" AND source = ?'
+        ' UNION SELECT * FROM sub_account_items WHERE sub_account_type = "account_payables" AND source = ?',
+        (g.user['id'], g.user['id'])
+    ).fetchall()
+
+    payment_options_list = [row['item_type'] for row in payment_options]
+    #print(card_provider_item_type['id'])
 
     # Tag all payments to deduct amount paid to payables
     for payment_id in payments_id_list:
-        payables_id = db.execute(
-            'SELECT * FROM sub_account_items WHERE item_type = ?', ('payable',)
-        ).fetchone()
-
-        db.execute(
-            'UPDATE transactions SET sub_account_item_id = ?'
-            ' WHERE id = ?', (payables_id['id'], payment_id)
-        )
-        db.commit()
-        
-        # Insert into user logs
-        db.execute(
-            'INSERT INTO logs (user_id, action_type, action_to)'
-            ' VALUES (?, ?, ?)', (g.user['id'], 'UPDATE PAYMENT', 'transaction {} added as payable type'.format(payment_id))
-        )
-        db.commit()
+        try:
+            db.execute(
+                'UPDATE transactions SET sub_account_item_id = ?'
+                ' WHERE id = ?', (card_provider_item_type['id'], payment_id)
+            )
+            db.commit()
+            
+            # Insert into user logs
+            db.execute(
+                'INSERT INTO logs (user_id, action_type, action_to)'
+                ' VALUES (?, ?, ?)', (g.user['id'], 'UPDATE PAYMENT', 'transaction {} added as payable type'.format(payment_id))
+            )
+            db.commit()
+        except TypeError:
+            pass
 
 
     # This is used to list the item types in HTML select tag, this is only applicable for credit cards
     types = db.execute(
-        'SELECT item_type FROM sub_account_items WHERE balance_sheet_account_type = "expense"'
-        ' UNION SELECT item_type FROM sub_account_items WHERE balance_sheet_account_type = "asset"'
+        'SELECT item_type FROM sub_account_items WHERE balance_sheet_account_type = "expense" AND source = 0'
+        ' UNION SELECT item_type FROM sub_account_items WHERE balance_sheet_account_type = "asset" AND source = 0'
+        ' UNION SELECT item_type FROM sub_account_items WHERE balance_sheet_account_type = "liabilities" AND source = 0'
+        ' UNION SELECT item_type FROM sub_account_items WHERE balance_sheet_account_type = "expense" AND source = ?'
+        ' UNION SELECT item_type FROM sub_account_items WHERE balance_sheet_account_type = "asset" AND source = ?'
+        ' UNION SELECT item_type FROM sub_account_items WHERE balance_sheet_account_type = "liabilities" AND source = ?', 
+        (g.user['id'], g.user['id'], g.user['id'])
     ).fetchall()
     item_types = []
     for row in types:
@@ -173,7 +216,8 @@ def update():
 
     # same from above but includes all item types
     all_types = db.execute(
-        'SELECT item_type FROM sub_account_items'
+        'SELECT item_type FROM sub_account_items WHERE source = 0'
+        ' UNION SELECT item_type FROM sub_account_items WHERE source = ?', (g.user['id'],)
     ).fetchall()
     all_item_types = []
     for row in all_types:
@@ -226,15 +270,24 @@ def update():
                     ' JOIN users ON log_sessions.user_id = users.id'
                     ' WHERE users.id = ? AND transactions.sub_account_item_id = ?'
                     ' AND transaction_info LIKE ?'
-                    ' ORDER BY transaction_date DESC', (g.user['id'], 36, '%' + keyword + '%')
+                    ' ORDER BY transaction_date DESC', (g.user['id'], 1, '%' + keyword + '%')
                 ).fetchall()
 
                 for row in transactions:
-                    db.execute(
-                        'UPDATE transactions SET sub_account_item_id = ?'
-                        ' WHERE id = ?', (item_type_select['id'], row['transaction_id'])
-                    )
-                    db.commit()
+
+                     # Check if item_type_select['balance_sheet_account_type'] is Revenue or Asset
+                    if item_type_select['balance_sheet_account_type'] in CREDIT_POSITIVE:
+                        db.execute(
+                            'UPDATE transactions SET sub_account_item_id = ?, transaction_amount = ?'
+                            ' WHERE id = ?', (item_type_select['id'], -1 * transactions['transaction_amount'],row['transaction_id'])
+                        )
+                        db.commit()                    
+                    else:
+                        db.execute(
+                            'UPDATE transactions SET sub_account_item_id = ?'
+                            ' WHERE id = ?', (item_type_select['id'], row['transaction_id'])
+                        )
+                        db.commit()
 
                 # Insert into user logs
                 db.execute(
@@ -253,8 +306,8 @@ def update():
             return jsonify({'error': str(e)}), 500
     
     return render_template('dataman/update.html', transactions=transactions, 
-                table_headers=TABLE_HEADERS, item_types=item_types, card_provider_set=card_provider_set, 
-                payments=payments, all_item_types=all_item_types)
+                table_headers=TABLE_HEADERS, item_types=item_types, card_provider_set=all_card_provider_options, 
+                payments=payments, all_item_types=all_item_types, payment_options_list=payment_options_list)
 
 
 @bp.route('/search')
@@ -319,8 +372,13 @@ def get_updated_table_data():
 
     # This is used to list the items in HTML select tag, 
     types = db.execute(
-        'SELECT item_type FROM sub_account_items WHERE balance_sheet_account_type = "expense"'
-        ' UNION SELECT item_type FROM sub_account_items WHERE balance_sheet_account_type = "asset"'
+        'SELECT item_type FROM sub_account_items WHERE balance_sheet_account_type = "expense" AND source = 0'
+        ' UNION SELECT item_type FROM sub_account_items WHERE balance_sheet_account_type = "asset" AND source = 0'
+        ' UNION SELECT item_type FROM sub_account_items WHERE balance_sheet_account_type = "liabilities" AND source = 0'
+        ' UNION SELECT item_type FROM sub_account_items WHERE balance_sheet_account_type = "expense" AND source = ?'
+        ' UNION SELECT item_type FROM sub_account_items WHERE balance_sheet_account_type = "asset" AND source = ?'
+        ' UNION SELECT item_type FROM sub_account_items WHERE balance_sheet_account_type = "liabilities" AND source = ?', 
+        (g.user['id'], g.user['id'], g.user['id'])
     ).fetchall()
     item_types = []
     for row in types:
@@ -494,10 +552,59 @@ def manual_entry():
         db = get_db()
         
         for transaction in data:
+            # Check if card Provider is included in the item_type check the card_provider and card_type
+            if transaction['itemType'] == 'default_current_account':
+                card_provider = transaction['cardProvider']
+                card_type = transaction['cardType']
 
-            item_type_id = db.execute(
-                'SELECT * FROM sub_account_items WHERE item_type = ?', (transaction['itemType'],)
-            ).fetchone()
+                # if existing in item_types. if it is existing, use the appropriate item_type number. If not, make a new item_type
+                # based on the card_provider and card_type
+
+                if card_type == 'credit_card':
+                    print('credit_card')
+                    card_provider_check = db.execute(
+                        'SELECT * FROM sub_account_items WHERE item_type = ?', ('{} Credit Card -user{}'.format(card_provider, g.user['id']),)
+                    ).fetchone()
+
+                    # Add to item Types
+                    if card_provider_check is None:
+                        db.execute(
+                            'INSERT INTO sub_account_items (item_type, sub_account_type, balance_sheet_account_type, source)'
+                            ' VALUES (?, ?, ?, ?)', ('{} Credit Card -user{}'.format(card_provider, g.user['id']), 'account_payables', 'liabilities', g.user['id'])
+                        )
+                        db.commit()
+                    else:
+                        print('not ok')
+                        pass
+
+                elif card_type == 'debit_card':
+                    print('debit_card')
+                    card_provider_check = db.execute(
+                        'SELECT * FROM sub_account_items WHERE item_type = ?', ('{} Debit Card -user{}'.format(card_provider, g.user['id']),)
+                    ).fetchone()
+
+                    if card_provider_check is None:
+                        db.execute(
+                            'INSERT INTO sub_account_items (item_type, sub_account_type, balance_sheet_account_type, source)'
+                            ' VALUES (?, ?, ?, ?)', ('{} Debit Card -user{}'.format(card_provider, g.user['id']), 'cash', 'asset', g.user['id'])
+                        )
+                        db.commit()
+                    else:
+                        print('not ok')
+                        pass
+                
+                item_type_id = db.execute(
+                        'SELECT * FROM sub_account_items WHERE item_type LIKE ?', ('{} {} -user{}'.format(card_provider, card_type.replace('_', ' '), g.user['id']),)
+                ).fetchone()
+
+            else:
+                item_type_id = db.execute(
+                    'SELECT * FROM sub_account_items WHERE item_type = ?', (transaction['itemType'],)
+                ).fetchone()
+
+
+            print(item_type_id['id'])
+
             db.execute(
                 'INSERT INTO files '
                 ' (filename, log_session_id, card_provider, card_type)'
@@ -620,8 +727,13 @@ def add():
 
     # This is used to list the item types in HTML select tag, this is only applicable for credit cards
     types = db.execute(
-        'SELECT item_type FROM sub_account_items WHERE balance_sheet_account_type = "expense"'
-        ' UNION SELECT item_type FROM sub_account_items WHERE balance_sheet_account_type = "asset"'
+        'SELECT item_type FROM sub_account_items WHERE balance_sheet_account_type = "expense" AND source = 0'
+        ' UNION SELECT item_type FROM sub_account_items WHERE balance_sheet_account_type = "asset" AND source = 0'
+        ' UNION SELECT item_type FROM sub_account_items WHERE balance_sheet_account_type = "liabilities" AND source = 0'
+        ' UNION SELECT item_type FROM sub_account_items WHERE balance_sheet_account_type = "expense" AND source = ?'
+        ' UNION SELECT item_type FROM sub_account_items WHERE balance_sheet_account_type = "asset" AND source = ?'
+        ' UNION SELECT item_type FROM sub_account_items WHERE balance_sheet_account_type = "liabilities" AND source = ?', 
+        (g.user['id'], g.user['id'], g.user['id'])
     ).fetchall()
     item_types = []
     for row in types:
@@ -629,7 +741,8 @@ def add():
 
     # same from above but includes all item types
     all_types = db.execute(
-        'SELECT item_type FROM sub_account_items'
+        'SELECT item_type FROM sub_account_items WHERE source = 0'
+        ' UNION SELECT item_type FROM sub_account_items WHERE source = ?', (g.user['id'],)
     ).fetchall()
     all_item_types = []
     for row in all_types:

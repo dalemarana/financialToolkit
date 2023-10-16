@@ -266,9 +266,9 @@ function getData() {
             transformedData[month][balanceSheetAccountType][subAccountType][itemType] = 0;
         }
         let a = 1;
-        if (balanceSheetAccountType == 'asset') {
-            a = -1;
-        }
+        // if (balanceSheetAccountType == 'asset') {
+        //     a = -1;
+        // }
         transformedData[month][balanceSheetAccountType][subAccountType][itemType] += (a * parseFloat(amount)) || 0;
 
     });
@@ -665,9 +665,9 @@ function createNetIncomeChart(ctx, mainDatasets) {
 
     for (let itemType of Object.keys(_datasets)){
         let correction = _datasets[itemType].label;
-        if (correction == 'asset') {
-            correction = 'revenue'
-        }
+        // if (correction == 'asset') {
+        //     correction = 'revenue'
+        // }
         modifiedDatasets.push({
             label: capitalizeWord(correction),
             data: _datasets[itemType].data,
@@ -719,21 +719,21 @@ function createNetIncomeChart(ctx, mainDatasets) {
                                 
                                 //console.log(label);
                                 let netIncome;
-                                let revenue;
-                                if (label.toLowerCase() == 'revenue')
+                                let asset;
+                                if (label.toLowerCase() == 'asset')
                                 {
-                                    revenue = context.parsed.y;
+                                    asset = context.parsed.y;
                                     let expense = context.chart.config._config.data.datasets[1].data[context.dataIndex];
                                     netIncome = context.parsed.y - expense;
                                     //console.log(netIncome);
 
                                 } else {
-                                    revenue = context.chart.config._config.data.datasets[0].data[context.dataIndex];
-                                    netIncome = revenue - context.parsed.y;
+                                    asset = context.chart.config._config.data.datasets[0].data[context.dataIndex];
+                                    netIncome = asset - context.parsed.y;
                                     //console.log(netIncome);
                                 }
 
-                                let percentageNetIncome = (netIncome * 100) / revenue;
+                                let percentageNetIncome = (netIncome * 100) / asset;
                                 netIncome = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'GBP' }).format(netIncome);
 
                                 return ['Vs Previous Month:   ' + difference, '', 
