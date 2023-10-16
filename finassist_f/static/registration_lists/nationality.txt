@@ -1,0 +1,54 @@
+Filipino
+British
+American
+Algerian
+Bangladeshi
+Brazilian
+Cameroonian
+Canadian
+Chinese
+Colombian
+Côte d'Ivoire (Ivorian)
+DR Congolese
+Egyptian
+Ethiopian
+French
+German
+Ghanaian
+Indian
+Indonesian
+Iranian
+Iraqi
+Irish
+Italian
+Japanese
+Kenyan
+Madagascan
+Malaysian
+Mexican
+Moroccan
+Mozambican
+Myanmar (Burmese)
+Nepali
+Nigerian
+Pakistani
+Peruvian
+Polish
+Russian
+Saudi Arabian
+Scottish
+South African
+South Korean
+Spanish
+Sudanese
+Tanzanian
+Thai
+Turkish
+Ugandan
+Ukrainian
+United States (American)
+Uzbek
+Venezuelan
+Vietnamese
+Welch
+Yemeni

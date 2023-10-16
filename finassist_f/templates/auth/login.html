@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+
+{% block title %}
+    {% block header %} Login {% endblock %}
+{% endblock %}
+
+{% block body %}
+
+<div class="container mt-3">
+    <h3>FinAssist</h3>
+    <p>Click on the button to open the modal.</p>
+    
+    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#myModal">
+      Click here to Login
+    </button>
+</div>
+
+<!-- The Modal -->
+<div class="modal fade" id="myModal">
+    <div class="modal-dialog">
+        <div class="modal-content">
+  
+        <!-- Modal Header -->
+        <div class="modal-header">
+          <h4 class="modal-title">Login</h4>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+  
+        <!-- Modal body -->
+        <div class="modal-body">
+            <form method="post" class="has-validation">
+                <div class="form-floating mb-3 mt-3">
+                    <input type="text" class="form-control" id="username" placeholder="Enter your username" name="username" required autofocus>
+                    <label for="username">Username</label>
+                    <div class="valid-feedback">Valid.</div>
+                    <div class="invalid-feedback">Please fill out this field.</div>
+                  </div>
+                  <div class="form-floating mb-3 mt-3">
+                    <input type="password" class="form-control" id="password" placeholder="Enter your password" name="password" required>
+                    <label for="password">Password</label>
+                    <div class="valid-feedback">Valid.</div>
+                    <div class="invalid-feedback">Please fill out this field.</div>
+                  </div>
+                <div class="form-check mb-3">
+                  <label class="form-check-label">
+                    <input class="form-check-input" type="checkbox" name="remember"> Remember me
+                  </label>
+                </div>
+                <button type="submit" class="btn btn-success">Login</button>
+              </form>
+        </div>
+  
+        <!-- Modal footer -->
+        <div class="modal-footer shadow">
+            <form action="{{ url_for('auth.register') }}" method="get">
+                <button type="submit" class="btn btn-outline-success" data-bs-dismiss="modal">Sign-up</button>
+            </form>
+        </div>
+  
+        </div>
+    </div>
+</div>
+  
+{% endblock %}

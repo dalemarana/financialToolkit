@@ -1,0 +1,231 @@
+{% extends 'base.html' %}
+
+{% block title %}
+    {% block header %} Add Transactions {% endblock %}
+{% endblock %}
+
+{% block body %}
+
+    <div class="container-lg mt-3">
+        <ul class="nav nav-tabs" id="myTab" role="tablist">
+            <li id="publishBtnLi" class="nav-item ms-auto">
+                <input class="btn btn-success me-2 mb-2 px-5" type="button" value="Publish" id="publish" data-bs-toggle="modal" data-bs-target="#publishModal">
+            </li>
+            <li id="publishSummaryBtn" class="nav-item ms-auto d-none">
+                <input class="btn btn-success me-2 mb-2 px-5" type="button" value="publishSummary" id="publishSummary" data-bs-toggle="modal" data-bs-target="#publishSummaryModal">
+            </li>
+        </ul>
+        <!-- Modal for Publish-->
+        <div class="modal fade" id="publishModal" tabindex="-1" aria-labelledby="publishModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                <h1 class="modal-title fs-5" id="publishModalLabel">Are you ready to publish to your dashboard?</h1>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div id="publishModalBody" class="modal-body container-md">
+                    After publishing, you should be able to see the added transactions in your dashboard for your analysis<br><br>
+                    This dashboard is personal and can only be seen by you. <br><br>
+                    In case you forgot to add or edit some transactions, you can still add/edit after you publish.
+                </div>
+                <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Back to Editing</button>
+                <button id="publishBtn" type="button" class="btn btn-success" data-bs-dismiss="modal">Close and Publish</button>
+                <a tabindex="0" class="far fa-question-circle text-information me-2" data-bs-toggle="popover" data-bs-trigger="focus" title="What does 'Publish' means?. &#128512;"
+                data-bs-content="When you publish, you include all edited transactions to your FinAssist Dashboard." style="color:inherit; text-decoration: none;"></a>
+                </div>
+            </div>
+            </div>
+        </div>  
+        <!-- Modal for Publish Summary-->
+        <div class="modal fade" id="publishSummaryModal" tabindex="-1" aria-labelledby="publishSummaryModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                <h1 class="modal-title fs-5" id="publishSummaryModalLabel">Are you ready to publish to your dashboard?</h1>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div id="publishSummaryModalBody" class="modal-body container-md">
+                    <div id="publishServerResponse position-relative" style="font-size: x-small;">
+                        <table class="table table-sm table-striped table-bordered table-success">
+                            <thead class="sticky-top top-0">
+                                <tr>
+                                    <th>Transaction Date</th>
+                                    <th>Transaction Details</th>
+                                    <th>Item Type</th>
+                                    <th>Card Provider</th>
+                                    <th>Payment Type</th>
+                                    <th>Transaction Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody id="publish-success-modal">
+                            </tbody>
+                        </table>
+                    </div>                
+                </div>
+                <div class="modal-footer">
+                <button id="publishSummaryBtn" type="button" class="btn btn-success" data-bs-dismiss="modal"><a href="{{ url_for('index') }}" style="color:inherit; text-decoration: none;">Go to Dashboard</a></button>
+                <a tabindex="0" class="far fa-question-circle text-information me-2" data-bs-toggle="popover" data-bs-trigger="focus" title="What does 'Publish' means?. &#128512;"
+                data-bs-content="When you publish, you include all edited transactions to your FinAssist Dashboard." style="color:inherit; text-decoration: none;"></a>
+                </div>
+            </div>
+            </div>
+        </div>          
+        
+
+        <div class="alert alert-light me-2" role="alert">
+            <h6>This section is where you add transactions manually.
+                <a tabindex="0" class="far fa-question-circle text-information me-2" data-bs-toggle="modal" data-bs-target="#manualInfoModal" 
+                style="color:inherit; text-decoration: none;"></a> 
+            </h6>
+        </div>
+        <div class="form-check mt-3 mb-3 d-none">
+            <input class="form-check-input radio" type="radio" name="blanks" id="all" value="all" checked>
+            <label class="form-check-label" for="all">
+              <small>Show all uploaded transactions</small>
+            </label>
+        </div>
+        <div class="d-none" id="transactionTable"></div>
+        <!-- Modal for explanation of manual entry-->
+        <div class="modal fade" id="manualInfoModal" tabindex="-1" aria-labelledby="manualInfoModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                <h1 class="modal-title fs-5" id="manualInfoModalLabel">Manual Entry Description &#128512;</h1>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div id="manualInfoModalBody" class="modal-body container-md">
+                    This section is where you enter your transactions manually. <br>
+                    These transactions are normally Cash transactions and Debit Card transactions. <br><br>
+                    <!-- this section is shown when where are payments in the uploaded document. -->
+                    {% if (payments) %}
+                    Before adding your transactions manually, we've noticed payments made to the uploaded bill. <br>
+                    Please provide the source of payment funds (current account, cash or debit card). <br>
+                    Cashbacks must be tagged as bank fees and charges.
+                    <div id="serverResponse position-relative" style="font-size: x-small;">
+                        <table class="table table-sm table-striped table-bordered table-success">
+                            <thead>
+                                <tr>
+                                    <th>Transaction Date</th>
+                                    <th>Transaction Details</th>
+                                    <th>Item Type</th>
+                                    <th>Paid to</th>
+                                    <th>Paid From</th>
+                                    <th>Payment Type</th>
+                                    <th>Transaction Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for payment in payments %}
+                                <tr>
+                                    <td class="payment_date_{{ payment['transaction_id'] }}">{{ payment['transaction_date'] }}</td>
+                                    <td class="payment_info_{{ payment['transaction_id'] }}">{{ payment['transaction_info'] }}</td>
+                                    <td class="payment_item_type_{{ payment['transaction_id'] }}">Payables</td>
+                                    <td class="payment_paid_to_{{ payment['card_provider'] }}">
+                                        {{ payment['card_provider'] }}<!--  manage how to get the card provider of the bill -->
+                                    </td>
+                                    <td class="payment_paid_from_{{ payment['card_provider'] }}">
+                                        test<!-- input field -->
+                                    </td>
+                                    <td class="payment_payment_type_{{ payment['card_provider'] }}">
+                                        test<!-- select field -->
+                                    </td>
+                                    <td class="payment_amount_{{ payment['transaction_amount'] }}">{{ payment['card_provider'] }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                <!-- <a tabindex="0" class="far fa-question-circle text-information me-2" data-bs-toggle="popover" data-bs-trigger="focus" title="What does 'Publish' means?. &#128512;"
+                data-bs-content="When you publish, you include all edited transactions to your FinAssist Dashboard." style="color:inherit; text-decoration: none;"></a> -->
+                </div>
+            </div>
+            </div>
+        </div>               
+        <div class="container-lg mt-5 mb-3">
+            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                <input type="submit" class="btn btn-outline-success mb-5 me-2" value="Save Transactions" id="saveTransactions" form="manualForm"> 
+            </div>
+            <form id="manualForm">
+                <div class="col mt-5">
+                    <div class="alert p-2 d-none" id="sortSuccess" role="alert" style="font-size: small; width: fit-content;"></div>
+                </div>
+                <div class="input-group mt-1 manual-transactions" style="font-size: x-small;">
+                    <input type="date" aria-label="transaction date" placeholder="Date of Transaction" class="form-control transaction_date" required style="font-size: small;">
+                    <input type="text" aria-label="transaction info" placeholder="Transaction Info" class="form-control transaction_info" required style="font-size: small;">
+                    <select class="form-select item_type" required style="font-size: small;">
+                        {% for type in all_item_types %}
+                        <option value="{{ type }}">{{ type.replace("_", " ").capitalize() }}</option>
+                        {% endfor %}
+                        <option value="" selected>Item Type</option>
+                    </select>
+                    <input type="text" list="card_provider_suggest" aria-label="card provider" placeholder="Source of Payment" class="form-control cardprovider" style="font-size: small;text-transform: uppercase; display: block;">
+                    <datalist id="card_provider_suggest"></datalist>
+                    <select class="form-select card_type" required style="font-size: small;">
+                        <option value="" selected>Payment Type</option>
+                        <option value="credit_card">Credit Card</option>
+                        <option value="debit_card">Debit Card</option>
+                        <option value="cash">Cash Card</option>
+                    </select>
+                    <input type="number" aria-label="transaction amount" placeholder="0" step="0.01" class="form-control transaction_amount" style="font-size: small; text-align: right;">
+                    <button type="button" class="btn btn-light manual-transaction-delete" style="border: gray;">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                </div>
+                <!-- Modal for Manual Entry Summary-->
+                <div class="modal fade" id="manualModal" tabindex="-1" aria-labelledby="manualModalLabel" aria-hidden="true">
+                    <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                        <h1 class="modal-title fs-5" id="manualModalLabel">Manual Entry Summary</h1>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div id="manualModalBody" class="modal-body container-md">
+                            <div id="serverResponse position-relative" style="font-size: x-small;">
+                                <table class="table table-sm table-striped table-bordered table-success">
+                                    <thead class="sticky-top top-0">
+                                        <tr>
+                                            <th>Transaction Date</th>
+                                            <th>Transaction Details</th>
+                                            <th>Item Type</th>
+                                            <th>Card Provider</th>
+                                            <th>Payment Type</th>
+                                            <th>Transaction Amount</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="manual-success-modal">
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Add more transactions</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close and Publish</button>
+                        <a tabindex="0" class="far fa-question-circle text-information me-2" data-bs-toggle="popover" data-bs-trigger="focus" title="What does 'Publish' means?. &#128512;"
+                        data-bs-content="When you publish, you include all edited transactions to your FinAssist Dashboard." style="color:inherit; text-decoration: none;"></a>
+                        </div>
+                    </div>
+                    </div>
+                </div>                    
+            </form>
+            <input type="button" class="btn btn-outline-secondary mt-5" value="Add more" id="addTransactions"> 
+            <input type="button" class="btn btn-outline-secondary d-none" value="Modal" id="modalTriggerManualTransactions" data-bs-toggle="modal" data-bs-target="#manualModal"> 
+            <div class="d-none">
+                <select id="card_provider_options" class="form-control">
+                    {% for each in card_provider_set %}
+                    <option value="{{ each }}">{{ each.replace("_", " ").capitalize() }}</option>
+                    {% endfor %}
+                </select>                                    
+            </div>
+        </div>
+    </div>
+
+    
+    <script src="../../static/js/add.js" type="text/javascript"></script>
+    <script src="../../static/js/publish.js" type="text/javascript"></script>
+
+{% endblock %}

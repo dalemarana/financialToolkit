@@ -1,0 +1,46 @@
+.wrong .fa-check
+{
+    display: none;
+}
+
+.good .fa-times
+{
+    display: none;
+}
+
+.tab-pane {
+    height:570px;
+    overflow-y:scroll;
+    width:100%;
+}
+
+.tab-content {
+    border-left: 1px solid #ddd;
+    border-right: 1px solid #ddd;
+    border-bottom: 1px solid #ddd;
+    border-radius: 0px 0px 5px 5px;
+    padding: 10px;
+}
+
+.nav-tabs {
+    margin-bottom: 0;
+}
+
+tr.transactions-row, th.header {
+    cursor: pointer;
+}
+
+input.transaction_info-input {
+    width: 100%;
+    padding: 2px;
+    border: none;
+}
+
+.fa-trash-alt:hover i{
+    color: #CD5c5c;
+}
+
+.dropdown-menu {
+    max-height: 300px;
+    overflow-y: scroll;
+}

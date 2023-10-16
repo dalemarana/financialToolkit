@@ -1,0 +1,20 @@
+Accountant
+Artist
+Chef
+Designer
+Doctor
+Electrician
+Engineer
+Entrepreneur
+IT Professional
+Lawyer
+Manager
+Marketing Specialist
+Nurse
+Pharmacist
+Police Officer
+Salesperson
+Social Worker
+Student
+Teacher
+Writer

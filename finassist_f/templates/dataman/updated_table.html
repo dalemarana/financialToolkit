@@ -1,0 +1,48 @@
+<table class="table table-light table-striped table-bordered table-hover table-responsive" id="transactionTable">
+    <thead class="sticky-top top-0" style="z-index: 10;">
+        <tr class="text-center align-middle" style="font-size: smaller;">
+            {% for value in table_headers %}
+                {% if value == 'card_provider' %}
+            <th scope="col" class="{{ value }}_ header">Payment Source</td>
+                {% else %}
+            <th scope="col" class="{{ value }} header">{{ value.replace("_", " ").capitalize() }}</td>
+                {% endif %}
+            {% endfor %}
+            <th id="deleteBtnHeader"></th>
+            <th class="publishHeader d-none"></th>
+        </tr>
+    </thead>
+    <tbody id="editTbody">
+        {% for row in transactions %}
+        <tr id="txRow_{{ row['transaction_id'] }}" class="transactions-row align-middle" style="font-size: small;">
+            {% for value in table_headers %}
+                {% if value == 'transaction_amount' %}
+                <td class="{{ value }}" style="text-align: right;" id="{{ value }}_{{ row['transaction_id'] }}">{{ '%0.2f' | format(row[value]|float) }}</td>
+                {% elif value == 'item_type' %}
+                <td class="{{ value }}_selected">{{ row[value].replace("_", " ").capitalize() }}</td>
+                {% elif value == 'sub_account_type' %}
+                <td class="{{ value }}" id="{{ value }}_{{ row['transaction_id'] }}">{{ row[value].replace("_", " ").capitalize() }}</td>
+                {% elif value == 'card_provider' %}
+                <td class="{{ value }}_" id="{{ value }}_{{ row['transaction_id'] }}">
+                    {{ row[value].replace("_", " ").capitalize() }}<br>
+                    <small class="text-body-secondary">{{ row['card_type'].replace("_", " ").capitalize() }}</small>
+                </td>  
+                {% else %}
+                <td class="{{ value }}" id="{{ value }}_{{ row['transaction_id'] }}">{{ row[value] }}</td>
+                {% endif %}
+            {% endfor %}
+                <td class="deleteBtn">
+                    <!-- Delete Button with modal -->
+                    <button id="delete_{{ row['transaction_id'] }}" type="button" class="btn btn-light delete-btn d-none" onclick="confirmDelete(event)">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                    <!-- Edit Button -->
+                    <button id="edit_{{ row['transaction_id'] }}" type="button" class="btn btn-light edit-btn">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                </td>
+                <td id="publish_{{ row['transaction_id'] }}" class="publish d-none">{{ row['publish'] }}</td>                                            
+        </tr>
+        {% endfor %}                    
+    </tbody>
+</table>

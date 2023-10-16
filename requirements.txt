@@ -1,0 +1,11 @@
+flask
+magic
+pdfplumber
+datetime
+flask_cors
+os
+functools
+csv
+werkzeug.exceptions
+re
+werkzeug.utils

@@ -1,0 +1,235 @@
+{% extends 'base.html' %}
+
+{% block title %}
+    {% block header %} Index {% endblock %}
+{% endblock %}
+
+{% block body %}
+
+
+    <div class="container-lg mt-3">
+        <ul class="nav nav-tabs" id="myTab" role="tablist">
+            <li id="dashboardTableLi" class="nav-item" role="presentation">
+                <button class="nav-link active" id="dashboardTable-tab" data-bs-toggle="tab" data-bs-target="#dashboardTable" type="button" role="tab" aria-controls="dashboardTable" aria-selected="true">Table View</button>
+            </li>
+            <li id="dashboardChartTabLi" class="nav-item" role="presentation">
+                <button class="nav-link" id="dashboardChart-tab" data-bs-toggle="tab" data-bs-target="#dashboardChart" type="button" role="tab" aria-controls="dashboardChart" aria-selected="false">Chart View</button>
+            </li>
+        </ul>
+        <!-- Tab panes -->
+        <div class="tab-content">
+            <div class="tab-pane active" id="dashboardTable" role="tabpanel" aria-labelledby="dashboardTable-tab" tabindex="0">
+                <form id="sortForm">
+                    <div class="row mb-3 mt-4 px-3">
+                        <div class="col">
+                            <label class="form-label" for="searchField">Transaction Quick Search</label>
+                            <a tabindex="0" class="far fa-question-circle text-information me-2" data-bs-toggle="popover" data-bs-trigger="focus" title="Keyword for transactions. &#128512;"
+                            data-bs-content="Provide a keyword to be able to have a quick search" 
+                            style="color:inherit; text-decoration: none;"></a>                    
+                            <input autofocus required class="form-control" list="datalistOptions" autocomplete="off" autofocus placeholder="Vendor" type="text" name="vendor_info" id="searchField" data-table="editTbody">
+                            <datalist id="datalistOptions">
+                                <!-- integrate javascript here to make suggestions -->
+                                <option value="Start typing to get suggestions.">
+                        </div>
+                        <div class="col-8"></div>
+                    </div>
+                    <div class="row mb-4 mt-3 px-3">
+                        <div class="col">
+                            <div class="dropdown" style="z-index: 15;">
+                                <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-auto-close="true" aria-expanded="false" id="dropdownMenuButton1">
+                                    Column Selection
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-light" aria-labelledby="dropdownMenuButton1">
+                                    {% for value in table_headers %}
+                                    <li>
+                                        <a class="dropdown-item">
+                                            <div class="form-check">
+                                                <input class="form-check-input column" type="checkbox" value="" id="{{ value }}" checked>
+                                                <label class="form-check-label" for="{{ value }}">{{ value.replace("_", " ").capitalize() }}</label>
+                                            </div>
+                                        </a>
+                                    </li>
+                                    <!-- uncheck card_provider column -->
+                                    {% endfor %}                               
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="col">
+                            <select id="item_type_options" class="form-control d-none" required name="item_type">
+                                <option value="" selected>Select item type</option>
+                                {% for type in all_item_types %}
+                                <option value="{{ type }}">{{ type.replace("_", " ").capitalize() }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col d-none">
+                        <div class="form-check mt-3 mb-3">
+                            <input class="form-check-input radio" type="radio" name="blanks" id="all" value="all" checked>
+                            <label class="form-check-label" for="all">
+                              <small>Show all uploaded transactions</small>
+                            </label>
+                        </div>
+                        <div class="form-check mt-4 mb-3 me-2">
+                            <input class="form-check-input radio" type="radio" name="blanks" id="blanksOnly" value="blanksOnly">
+                            <label class="form-check-label" for="blanksOnly">
+                              <small>Transactions with missing fields</small>
+                            </label>
+                        </div>
+                        <div class="form-check mt-4 mb-3 me-2 d-none">
+                            <input class="form-check-input checkbox" type="checkbox" name="payments" id="withoutPayments" value="withoutPayments" disabled>
+                            <label class="form-check-label" for="withoutPayments">
+                              <small>without payments</small>
+                            </label>
+                        </div>
+                        <div class="form-check mt-4 mb-3 me-2 d-none">
+                            <input class="form-check-input checkbox" type="checkbox" name="publish" id="withoutPublish" value="withoutPublish" disabled>
+                            <label class="form-check-label" for="withoutPublish">
+                              <small>without publish</small>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="position-relative">
+                        <table class="table table-light table-striped table-bordered table-hover" id="transactionTable">
+                            <thead class="sticky-top top-0" style="z-index: 10;">
+                                <tr class="text-center align-middle" style="font-size: smaller;">
+                                    {% for value in table_headers %}
+                                        {% if value == 'card_provider' %}
+                                    <th scope="col" class="{{ value }}_ header">Payment Source</td>
+                                        {% elif value == 'transaction_date' %}
+                                    <th scope="col" class="{{ value }} header">
+
+                                        <div class="dropdown" style="z-index: 15;">
+                                            <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-auto-close="true" aria-expanded="false" id="dropdownMenuButton2">
+                                                {{ value.replace("_", " ").capitalize() }}
+                                            </button>
+                                            <ul class="dropdown-menu dropdown-menu-light" aria-labelledby="dropdownMenuButton2" id="dateFilterDropdown">
+                                                <li>
+                                                    <a class="dropdown-item">
+                                                        <div class="form-check">
+                                                            <input class="form-check-input date-select-all" type="checkbox" id="selectAllMonthsYears" checked>
+                                                            <label class="form-check-label" type="label">Select All</label>
+                                                        </div>
+                                                    </a>
+                                                </li>
+                                                <div id="monthYearOptions"></div>
+                                            </ul>
+                                        </div>
+                                    </th>
+                                        {% elif value == 'item_type' %}
+                                    <th scope="col" class="{{ value }} header">
+                                        <div class="dropdown" style="z-index: 15;">
+                                            <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-auto-close="true" aria-expanded="false" id="dropdownMenuButton3">
+                                                {{ value.replace("_", " ").capitalize() }}
+                                            </button>
+                                            <ul class="dropdown-menu dropdown-menu-light" aria-labelledby="dropdownMenuButton3" id="itemTypeFilterDropdown">
+                                                <li>
+                                                    <a class="dropdown-item">
+                                                        <div class="form-check">
+                                                            <input class="form-check-input item-type-select-all" type="checkbox" id="selectAllitemTypes" checked>
+                                                            <label class="form-check-label" type="label">Select All</label>
+                                                        </div>
+                                                    </a>
+                                                </li>
+                                                <div id="itemTypeOptions"></div>
+                                            </ul>
+                                        </div>
+                                    </th>
+                                        {% else %}
+                                    <th scope="col" class="{{ value }} header">{{ value.replace("_", " ").capitalize() }}</th>
+                                        {% endif %}
+                                    {% endfor %}
+                                    <th id="deleteBtnHeader"></th>
+                                    <th class="publishHeader d-none"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="editTbody">
+                                {% for row in transactions %}
+                                <tr id="txRow_{{ row['transaction_id'] }}" class="transactions-row align-middle" style="font-size: small;">
+                                    {% for value in table_headers %}
+                                        {% if value == 'transaction_amount' %}
+                                        <td class="{{ value }}" style="text-align: right;" id="{{ value }}_{{ row['transaction_id'] }}">{{ '%0.2f' | format(row[value]|float) }}</td>
+                                        {% elif value == 'item_type' %}
+                                        <td class="{{ value }}_selected">{{ row[value].replace("_", " ").capitalize() }}</td>
+                                        {% elif value == 'sub_account_type' %}
+                                        <td class="{{ value }}" id="{{ value }}_{{ row['transaction_id'] }}">{{ row[value].replace("_", " ").capitalize() }}</td>
+                                        {% elif value == 'card_provider' %}
+                                        <td class="{{ value }}_" id="{{ value }}_{{ row['transaction_id'] }}">
+                                            {{ row[value].replace("_", " ") }}<br>
+                                            <small class="text-body-secondary">{{ row['card_type'].replace("_", " ").capitalize() }}</small>
+                                        </td>                        
+                                        {% else %}
+                                        <td class="{{ value }}" id="{{ value }}_{{ row['transaction_id'] }}">{{ row[value] }}</td>
+                                        {% endif %}
+                                    {% endfor %}
+                                        <td id="deleteBtn_{{ row['transaction_id'] }}" class="deleteBtn">
+                                            <!-- Button trigger modal -->
+                                            <button id="delete_{{ row['transaction_id'] }}" type="button" class="btn btn-light delete-btn d-none" onclick="confirmDelete(event)">
+                                                <i class="fas fa-trash-alt"></i>
+                                            </button>
+                                            <!-- Button trigger modal -->
+                                            <button id="edit_{{ row['transaction_id'] }}" type="button" class="btn btn-light edit-btn">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                        </td>
+                                        <td id="publish_{{ row['transaction_id'] }}" class="publish d-none">{{ row['publish'] }}</td>                                            
+                                </tr>
+                                {% endfor %}                    
+                            </tbody>
+                        </table>   
+                    </div>
+                </form>
+            </div>
+            <div class="tab-pane" id="dashboardChart" role="tabpanel" aria-labelledby="dashboardChart-tab" tabindex="0">
+                <button id="testBtn" type="button" class="btn btn-primary d-none">Monthy Expense</button>
+                <button id="test2Btn" type="button" class="btn btn-primary d-none">Monthly Net Income</button>
+                <button id="resetBtn" type="reset" class="btn btn-outline-success d-none">Reset</button>
+                <div class="row mt-3">
+                    <div class="col pe-5">
+                        <input type="checkbox" class="btn-check" id="netIncomeBtn" autocomplete="off">
+                        <label class="btn btn-outline-info" for="netIncomeBtn">Net Income</label>
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col pe-5">
+                        <input type="radio" class="btn-check" name="chartOptions" id="option1" autocomplete="off" value="expense" checked>
+                        <label class="btn btn-outline-primary btn-sm" for="option1">Expenses</label>
+                        
+                        <input type="radio" class="btn-check" name="chartOptions" id="option2" autocomplete="off" value="liabilities">
+                        <label class="btn btn-outline-danger btn-sm" for="option2">Liabilities</label>
+                        
+                        <input type="radio" class="btn-check" name="chartOptions" id="option3" autocomplete="off" value="asset">
+                        <label class="btn btn-outline-success btn-sm" for="option3">Revenue</label>
+
+                    </div>
+                </div>
+                <div class="row mt-3 d-none" style="width: 100%; height: 400px" id="netIncomeContainer">
+                    <div class="col" style="width: auto; height: 400px;">
+                        <canvas id="netIncomeChart"></canvas>
+                    </div>
+                </div>
+                <div class="row mx-auto mt-3" id="legend-container" style="text-align: center;"></div>
+
+                <div class="row mt-3" style="width: 100%; height: 400px">
+                    <div class="col-7" style="height: 100%;">
+                        <canvas id="chartExpense"></canvas>
+                    </div>
+                    <div class="col-5">
+                        <canvas id="chartDoughnut"></canvas>
+                    </div>
+                </div>
+                <div class="row mx-auto mt-5" id="legend-container1" style="text-align: center;"></div>
+
+
+                <div style="width: 800px;"><canvas id="chart"></canvas></div>
+            </div>
+        </div>
+    </div>
+    <script src="../../static/js/chart_data.js" type="text/javascript"></script>
+    <script src="../../static/js/popper.js" type="text/javascript"></script>
+    <script src="../../static/js/editable_rows.js" type="text/javascript"></script>
+    <script src="../../static/js/update_search.js" type="text/javascript"></script>
+    <script src="../../static/js/index_table_manipulation.js" type="text/javascript"></script>
+    <script src="../../static/js/table_manipulation.js" type="text/javascript"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
