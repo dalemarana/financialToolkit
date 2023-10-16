@@ -42,6 +42,24 @@ def configure_max_content_length():
 @bp.route('/upload', methods=('GET', 'POST'))
 @login_required
 def upload():
+
+    # Provide options for card_providers
+    db = get_db()
+
+    transactions = db.execute(
+        'SELECT files.id AS file_id, filename, card_provider, card_type, '
+        ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
+        ' item_type, sub_account_type, balance_sheet_account_type'        
+        ' FROM transactions JOIN files ON transactions.file_id = files.id '
+        ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
+        ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
+        ' JOIN users ON log_sessions.user_id = users.id'
+        ' WHERE users.id = ?'
+        ' ORDER BY transaction_date DESC', (g.user['id'], )
+    ).fetchall()
+
+    card_provider_set = set([row['card_provider'] for row in transactions])
+
     if request.method == 'POST':
         # Check if the post request has the file part
         if 'file' not in request.files:
@@ -72,7 +90,7 @@ def upload():
                 return redirect(request.url)
 
             # Insert the file into the database
-            card_provider = request.form['card_provider']
+            card_provider = (request.form['card_provider']).upper()
             card_type = request.form['card_type']
 
             db = get_db()
@@ -88,6 +106,41 @@ def upload():
             )
             db.commit()
 
+            # Check if card provider is in item_types
+
+            if card_type == 'credit_card':
+                print('credit_card')
+                card_provider_check = db.execute(
+                    'SELECT * FROM sub_account_items WHERE item_type = ?', ('{} Credit Card -user{}'.format(card_provider, g.user['id']),)
+                ).fetchone()
+                
+                # Add to item Types
+                if card_provider_check is None:
+                    db.execute(
+                        'INSERT INTO sub_account_items (item_type, sub_account_type, balance_sheet_account_type, source)'
+                        ' VALUES (?, ?, ?, ?)', ('{} Credit Card -user{}'.format(card_provider, g.user['id']), 'account_payables', 'liabilities', g.user['id'])
+                    )
+                    db.commit()
+                else:
+                    print('not ok')
+                    pass
+
+            elif card_type == 'debit_card':
+                print('debit_card')
+                card_provider_check = db.execute(
+                    'SELECT * FROM sub_account_items WHERE item_type = ?', ('{} Debit Card -user{}'.format(card_provider, g.user['id']),)
+                ).fetchone()
+
+                if card_provider_check is None:
+                    db.execute(
+                        'INSERT INTO sub_account_items (item_type, sub_account_type, balance_sheet_account_type, source)'
+                        ' VALUES (?, ?, ?, ?)', ('{} Debit Card -user{}'.format(card_provider, g.user['id']), 'cash', 'asset', g.user['id'])
+                    )
+                    db.commit()
+                else:
+                    print('not ok')
+                    pass
+
             # Get the file_id
             file_id = db.execute(
                 'SELECT files.id FROM files JOIN log_sessions ON files.log_session_id = log_sessions.id'
@@ -101,7 +154,7 @@ def upload():
             year = request.form['statement_year']
             pdfparse(file, file_id['id'], date_format, year)
             
-            print(file.filename)
+            #print(file.filename)
 
 
             # After processing, close the file and delete it
@@ -116,7 +169,7 @@ def upload():
 
             update_new_transactions(file_id['id'])
 
-            print('Upload successful')
+            #print('Upload successful')
 
             transaction_count = db.execute(
                 'SELECT COUNT(*) FROM transactions WHERE file_id = ?', (file_id['id'],)
@@ -127,7 +180,7 @@ def upload():
             return jsonify({'message': '{} transactions added.'.format(transaction_count[0])}), 200
 
         else:
-            print('unsuccessful')
+            #print('unsuccessful')
             db.execute(
                 'INSERT INTO logs (user_id, action_type, action_to)'
                 ' VALUES (?, ?, ?)', (g.user['id'], 'FILE UPLOAD', '{} has NOT been uploaded'.format(file.filename))
@@ -137,7 +190,7 @@ def upload():
             return jsonify({'error': 'Upload Error.'}), 400
 
     
-    return render_template('fileman/upload.html')
+    return render_template('fileman/upload.html', card_provider_set=card_provider_set)
 
 
 # Function to check if file is allowed as set in ALLOWED_EXTENSIONS
@@ -211,7 +264,7 @@ def pdfparse(file, file_id, date_format, year):
                         db.execute(
                             'INSERT INTO transactions (file_id, transaction_date, transaction_info, transaction_amount, sub_account_item_id)'
                             ' VALUES (?, ?, ?, ?, ?)', (file_id, transaction_dict['transaction_date'], 
-                            transaction_dict['transaction_info'], transaction_dict['transaction_amount'], 36) #33 for blank sub_account_item_id
+                            transaction_dict['transaction_info'], transaction_dict['transaction_amount'], 1) #1 for blank sub_account_item_id
                         )
                         db.commit()
 

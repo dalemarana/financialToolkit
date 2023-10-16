@@ -1,6 +1,7 @@
 sub_account_categories,sub_accounts,accounts
+,,
 savings_account,cash,asset
-current_account,cash,asset
+default_current_account,cash,asset
 receivables,accounts_receivable,asset
 pre-paid_expense,pre-paid_expense,asset
 furniture,PPE,asset
@@ -34,4 +35,3 @@ council_tax,utility_expense,expense
 bank_fees_charges,bank_charges_interest_fees,expense
 mortgage_interest,bank_charges_interest_fees,expense
 miscellaneous,luxury_expense,expense
-,,
