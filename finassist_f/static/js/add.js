@@ -2,7 +2,7 @@
 // Function to submit manual entry form
 
 document.getElementById('manualForm').addEventListener('submit', (event) => {
-    console.log('ok');
+    //console.log('ok');
     event.preventDefault();
 
     const transactions = document.querySelectorAll('.manual-transactions');
@@ -52,7 +52,16 @@ document.getElementById('manualForm').addEventListener('submit', (event) => {
         if (data.message === 'Data processed successfully') {
             // update the Table
             updateTable();
-            console.log('ok');
+            // console.log('ok');
+
+            // Hide submitted Manual transactions.
+            const manualTransactions = document.querySelectorAll('.input-group.manual-transactions');
+            //console.log(manualTransactions);
+            manualTransactions.forEach((transaction) => {
+                if (!transaction.classList.contains('d-none')) {
+                    transaction.classList.add('d-none');
+                }
+            });
 
             html='';
             transactionList.forEach((transaction) => {
@@ -86,7 +95,7 @@ document.getElementById('manualForm').addEventListener('submit', (event) => {
 // Function to add manual transaction rows
 document.getElementById('addTransactions').addEventListener('click', () => {
     // Clone the existing group
-    const inputGroup = document.querySelector('.input-group');
+    const inputGroup = document.querySelector('.input-group.manual-transactions');
     const clone = inputGroup.cloneNode(true);
 
     // Clear input values in the cloned group
@@ -94,6 +103,11 @@ document.getElementById('addTransactions').addEventListener('click', () => {
     inputs.forEach((input) => {
         input.value = '';
     });
+
+    // Check if display is none, and show
+    if (clone.classList.contains('d-none')) {
+        clone.classList.remove('d-none');
+    }
 
     // Append the cloned input group to the form
     document.getElementById('manualForm').appendChild(clone);

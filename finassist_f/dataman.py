@@ -635,6 +635,8 @@ def manual_entry():
 
         flash('Transactions has been added.')
 
+        # add_more_html = render_template('dataman/add_more.html', transactions=transactions, table_headers=TABLE_HEADERS, item_types=item_types)
+
         response = {'success': True, 'message': 'Data processed successfully'} 
         return jsonify(response), 200
 
