@@ -2,7 +2,7 @@
 // Function to Initiate Publishing of edited data
 
 document.getElementById('publishBtn').addEventListener('click', () => {
-    console.log('ok');
+    //console.log('ok');
 
     fetch('/publish', {
         method: 'POST',

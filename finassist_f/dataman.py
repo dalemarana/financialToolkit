@@ -666,8 +666,6 @@ def publish():
     ).fetchall()
 
     publish = []
-
-    #urrent_payable = 0
         
     for transaction in transactions:
         transaction_dict = {
@@ -680,6 +678,17 @@ def publish():
         }
         publish.append(transaction_dict)
 
+    
+    # Retrieve the file_id and details of the uploaded file
+    try:
+        current_payable_file_id = ((list(set([row['file_id'] for row in transactions]))).remove('manual_entry'))[0]
+    except ValueError:
+        current_payable_file_id = ((list(set([row['file_id'] for row in transactions]))))[0]
+
+
+    print(current_payable_file_id)
+
+    update_current_payable(current_payable_file_id)
 
     #print(publish)
     transaction_id_list = [row['transaction_id'] for row in transactions]
@@ -703,6 +712,43 @@ def publish():
 
     except Exception as e:
         return jsonify({'error': 'An error occured'}), 500    
+
+def update_current_payable(file_id):
+    db = get_db()
+
+    current_payable = db.execute(
+        'SELECT * FROM files WHERE id = ?', (file_id,)
+    ).fetchone()
+
+    # Retrieve sub_account_id of the card_provider
+    card_provider_item_type = db.execute(
+        'SELECT * FROM sub_account_items WHERE item_type LIKE ? AND source = ?',
+        ('{} {} %'.format(current_payable['card_provider'], current_payable['card_type']), g.user['id'])
+    ).fetchone()
+
+    # Retrieve Total debit to the card_provider from file_id
+    total_payable = db.execute(
+        'SELECT SUM(transaction_amount) FROM transactions WHERE transaction_amount > 0'
+        ' AND file_id = ?', (file_id,)
+    ).fetchone()[0]
+
+    print(total_payable)
+    date = current_payable['upload_date']
+    formatted_date = (datetime.strptime(date, '%Y-%m-%d %H:%M:%S')).strftime('%Y-%m-%d')
+
+    # Insert Into transactions
+    db.execute(
+        'INSERT INTO transactions (file_id, transaction_date, transaction_info, transaction_amount, sub_account_item_id, publish)'
+        ' VALUES (?, ?, ?, ?, ?, ?)', (file_id, formatted_date, 
+                                 'Aggregate PAYABLE to {} {}'.format(current_payable['card_provider'], current_payable['card_type'].replace('_', ' ')),
+                                 total_payable ,card_provider_item_type['id'], 'published')
+    )
+    db.commit()
+
+    print(current_payable['upload_date'])
+    print('aggregate payable to {} {}'.format(current_payable['card_provider'], current_payable['card_type']))
+    print(card_provider_item_type['id'])
+
 
 
 # Function to add transactions manually (main)
