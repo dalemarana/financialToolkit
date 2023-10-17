@@ -409,11 +409,16 @@ def delete_transaction():
                                         transaction['transaction_info'],
                                         transaction['transaction_amount'])
     
+
+
     # Implement the Delete logic here
     db.execute(
         'DELETE FROM transactions WHERE id = ?', (transaction_id,)
     )
     db.commit()
+
+    # Get the file id to update the aggregate
+    update_current_payable(transaction['file_id'])
 
     # Insert into user logs
     db.execute(
@@ -688,7 +693,7 @@ def publish():
 
     print(current_payable_file_id)
 
-    update_current_payable(current_payable_file_id)
+    add_current_payable(current_payable_file_id)
 
     #print(publish)
     transaction_id_list = [row['transaction_id'] for row in transactions]
@@ -713,17 +718,17 @@ def publish():
     except Exception as e:
         return jsonify({'error': 'An error occured'}), 500    
 
-def update_current_payable(file_id):
+def add_current_payable(file_id):
     db = get_db()
 
-    current_payable = db.execute(
+    file_to_update = db.execute(
         'SELECT * FROM files WHERE id = ?', (file_id,)
     ).fetchone()
 
     # Retrieve sub_account_id of the card_provider
     card_provider_item_type = db.execute(
         'SELECT * FROM sub_account_items WHERE item_type LIKE ? AND source = ?',
-        ('{} {} %'.format(current_payable['card_provider'], current_payable['card_type']), g.user['id'])
+        ('{} {} %'.format(file_to_update['card_provider'], file_to_update['card_type']), g.user['id'])
     ).fetchone()
 
     # Retrieve Total debit to the card_provider from file_id
@@ -733,21 +738,50 @@ def update_current_payable(file_id):
     ).fetchone()[0]
 
     print(total_payable)
-    date = current_payable['upload_date']
+    date = file_to_update['upload_date']
     formatted_date = (datetime.strptime(date, '%Y-%m-%d %H:%M:%S')).strftime('%Y-%m-%d')
 
     # Insert Into transactions
     db.execute(
         'INSERT INTO transactions (file_id, transaction_date, transaction_info, transaction_amount, sub_account_item_id, publish)'
         ' VALUES (?, ?, ?, ?, ?, ?)', (file_id, formatted_date, 
-                                 'Aggregate PAYABLE to {} {}'.format(current_payable['card_provider'], current_payable['card_type'].replace('_', ' ')),
+                                 'Aggregate PAYABLE to {} {}'.format(file_to_update['card_provider'], file_to_update['card_type'].replace('_', ' ')),
                                  total_payable ,card_provider_item_type['id'], 'published')
     )
     db.commit()
 
-    print(current_payable['upload_date'])
-    print('aggregate payable to {} {}'.format(current_payable['card_provider'], current_payable['card_type']))
-    print(card_provider_item_type['id'])
+    # print(current_payable['upload_date'])
+    # print('aggregate payable to {} {}'.format(current_payable['card_provider'], current_payable['card_type']))
+    # print(card_provider_item_type['id'])
+
+
+def update_current_payable(file_id):
+    db = get_db()
+
+    # Get Aggregate transaction details
+    transaction_to_update = db.execute(
+        'SELECT * FROM transactions WHERE transaction_info LIKE ? AND file_id = ?', ('Aggregate PAYABLE to%' ,file_id)
+    ).fetchone()
+    if transaction_to_update is not None:
+        # Get Updated value except
+        total_payable = db.execute(
+            'SELECT SUM(transaction_amount) FROM transactions WHERE transaction_amount > 0'
+            ' AND file_id = ?', (file_id,)
+        ).fetchone()[0]
+
+        total_payable = total_payable - transaction_to_update['transaction_amount']
+        print(total_payable)
+
+        # Update the Aggregate payable
+        db.execute(
+            'UPDATE transactions SET transaction_amount = ? WHERE id = ?', (total_payable, transaction_to_update['id'])
+        )
+        db.commit()
+    
+    else:
+        print('nothing to update')
+        pass
+
 
 
 
