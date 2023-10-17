@@ -721,6 +721,12 @@ def publish():
 def add_current_payable(file_id):
     db = get_db()
 
+    # Get last date from the file_id
+    date = db.execute(
+        'SELECT transaction_date FROM transactions WHERE file_id = ? ORDER BY transaction_date DESC',
+        (file_id,)
+    ).fetchone()[0]
+
     file_to_update = db.execute(
         'SELECT * FROM files WHERE id = ?', (file_id,)
     ).fetchone()
@@ -737,22 +743,19 @@ def add_current_payable(file_id):
         ' AND file_id = ?', (file_id,)
     ).fetchone()[0]
 
-    print(total_payable)
-    date = file_to_update['upload_date']
-    formatted_date = (datetime.strptime(date, '%Y-%m-%d %H:%M:%S')).strftime('%Y-%m-%d')
+    # date = file_to_update['upload_date']
+    # formatted_date = (datetime.strptime(date, '%Y-%m-%d %H:%M:%S')).strftime('%Y-%m-%d')
 
     # Insert Into transactions
     db.execute(
         'INSERT INTO transactions (file_id, transaction_date, transaction_info, transaction_amount, sub_account_item_id, publish)'
-        ' VALUES (?, ?, ?, ?, ?, ?)', (file_id, formatted_date, 
+        ' VALUES (?, ?, ?, ?, ?, ?)', (file_id, date, 
                                  'Aggregate PAYABLE to {} {}'.format(file_to_update['card_provider'], file_to_update['card_type'].replace('_', ' ')),
                                  total_payable ,card_provider_item_type['id'], 'published')
     )
     db.commit()
 
-    # print(current_payable['upload_date'])
-    # print('aggregate payable to {} {}'.format(current_payable['card_provider'], current_payable['card_type']))
-    # print(card_provider_item_type['id'])
+
 
 
 def update_current_payable(file_id):
@@ -770,7 +773,6 @@ def update_current_payable(file_id):
         ).fetchone()[0]
 
         total_payable = total_payable - transaction_to_update['transaction_amount']
-        print(total_payable)
 
         # Update the Aggregate payable
         db.execute(
