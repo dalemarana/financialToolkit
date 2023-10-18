@@ -277,9 +277,10 @@ def update():
 
                      # Check if item_type_select['balance_sheet_account_type'] is Revenue or Asset
                     if item_type_select['balance_sheet_account_type'] in CREDIT_POSITIVE:
+                        print('asset')
                         db.execute(
                             'UPDATE transactions SET sub_account_item_id = ?, transaction_amount = ?'
-                            ' WHERE id = ?', (item_type_select['id'], -1 * transactions['transaction_amount'],row['transaction_id'])
+                            ' WHERE id = ?', (item_type_select['id'], -1 * row['transaction_amount'], row['transaction_id'])
                         )
                         db.commit()                    
                     else:
