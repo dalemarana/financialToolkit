@@ -559,7 +559,7 @@ def manual_entry():
         
         for transaction in data:
             # Check if card Provider is included in the item_type check the card_provider and card_type
-            if transaction['itemType'] == 'default_current_account':
+            if transaction['itemType'] == 'default_current_account' or transaction['itemType'] == 'payable':
                 card_provider = transaction['cardProvider']
                 card_type = transaction['cardType']
 
@@ -580,7 +580,7 @@ def manual_entry():
                         )
                         db.commit()
                     else:
-                        print('not ok')
+                        print('not new')
                         pass
 
                 elif card_type == 'debit_card':
@@ -596,7 +596,7 @@ def manual_entry():
                         )
                         db.commit()
                     else:
-                        print('not ok')
+                        print('not new')
                         pass
                 
                 item_type_id = db.execute(
@@ -624,10 +624,23 @@ def manual_entry():
                 ' ORDER BY id DESC', (g.user['log_session_id'], 'manual_entry')
             ).fetchone()
             print(transaction['itemType'])
+
+            # payments should incur negative in cash/asset transactions. Check what type of 
+            # Balance sheet account type is the transaction
+            balance_sheet_account_type = db.execute(
+                'SELECT balance_sheet_account_type FROM sub_account_items WHERE id = ?', (item_type_id['id'],)
+            ).fetchone()
+            print(balance_sheet_account_type[0])
+            transaction_amount = float(transaction['transactionAmount'])
+
+            if balance_sheet_account_type[0] == 'asset':  # This is hard coded.
+                print('ok')
+                transaction_amount = -1 * transaction_amount
+
             db.execute(
                 'INSERT INTO transactions (file_id, transaction_date, transaction_info, transaction_amount, sub_account_item_id)'
                 ' VALUES (?, ?, ?, ?, ?)', (file_id['id'], transaction['transactionDate'], transaction['transactionInfo'], 
-                float(transaction['transactionAmount']), item_type_id['id'])
+                transaction_amount, item_type_id['id'])
             )
             db.commit()
             # Insert into user logs
@@ -685,22 +698,38 @@ def publish():
         publish.append(transaction_dict)
 
     
+    # This is to be applied during an Uploaded file 
     # Retrieve the file_id and details of the uploaded file
+        
     try:
-        current_payable_file_id = ((list(set([row['file_id'] for row in transactions]))).remove('manual_entry'))[0]
-    except ValueError:
-        current_payable_file_id = ((list(set([row['file_id'] for row in transactions]))))[0]
+        current_payable_file_name = ((list(set([row['filename'] for row in transactions]))).remove('manual_entry'))[0]
+    except (ValueError, TypeError):
+        current_payable_file_name = ((list(set([row['filename'] for row in transactions]))))[0]
 
 
-    print(current_payable_file_id)
+    # print(list(set([row['filename'] for row in transactions])))
+    
+    print(current_payable_file_name)
 
-    add_current_payable(current_payable_file_id)
+    if not current_payable_file_name == 'manual_entry':
+    # Retrieve file id based on name
+        print('ok')
+        current_payable_file_id = db.execute(
+            'SELECT files.id FROM files '
+            ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
+            ' JOIN users ON log_sessions.user_id = users.id'
+            ' WHERE filename = ? AND users.id = ?', (current_payable_file_name, g.user['id'])
+        ).fetchone()[0]
+
+        add_current_payable(current_payable_file_id)
+    else:
+        pass
 
     #print(publish)
     transaction_id_list = [row['transaction_id'] for row in transactions]
 
     try:
-        #Tag transactions as published
+        # Tag transactions as published
         for transaction_id in transaction_id_list:
             db.execute(
                 'UPDATE transactions SET publish = ? WHERE id = ?',
@@ -746,7 +775,8 @@ def add_current_payable(file_id):
 
     # date = file_to_update['upload_date']
     # formatted_date = (datetime.strptime(date, '%Y-%m-%d %H:%M:%S')).strftime('%Y-%m-%d')
-
+    print(file_id)
+    print(total_payable)
     # Insert Into transactions
     db.execute(
         'INSERT INTO transactions (file_id, transaction_date, transaction_info, transaction_amount, sub_account_item_id, publish)'

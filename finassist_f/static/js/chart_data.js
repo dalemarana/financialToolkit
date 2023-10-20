@@ -44,12 +44,12 @@ const triggerBtn = document.getElementById('testBtn');
         chartOptions.forEach((option) => {
             if (option.checked) {
                 selectedValue = option.value;
-                //console.log(selectedValue);
+                console.log(selectedValue);
             }
             option.addEventListener('click', () => {
                 if (option.checked) {
                     selectedValue = option.value;
-                    //console.log(selectedValue);
+                    console.log(selectedValue);
 
                 }
                 chart = createChart(ctx, selectedValue, datasets);
@@ -646,7 +646,7 @@ function handleChartClick(e, chart, selectedValue, datasets) {
 function createNetIncomeChart(ctx, mainDatasets) {
     let datasets = mainDatasets['netIncomeData'];
 
-    let labels = [datasets.asset.labels];
+    let labels = [datasets.revenue.labels];
     //console.log(labels);
 
     // Define a function to set the backgroundColor for each data point
@@ -657,7 +657,7 @@ function createNetIncomeChart(ctx, mainDatasets) {
 
 
     
-    const _datasets = {asset: datasets.asset.datasets[0],
+    const _datasets = {asset: datasets.revenue.datasets[0],
                     expense: datasets.expense.datasets[0]};
 
     let modifiedDatasets = [];
@@ -720,7 +720,7 @@ function createNetIncomeChart(ctx, mainDatasets) {
                                 //console.log(label);
                                 let netIncome;
                                 let asset;
-                                if (label.toLowerCase() == 'asset')
+                                if (label.toLowerCase() == 'revenue')
                                 {
                                     asset = context.parsed.y;
                                     let expense = context.chart.config._config.data.datasets[1].data[context.dataIndex];
