@@ -1,5 +1,6 @@
 import os
-    
+import re
+
 from flask import (
     Blueprint, flash, g, redirect, request, render_template, request, url_for, jsonify, current_app
 )
@@ -645,8 +646,8 @@ def manual_entry():
             db.commit()
 
             # call add_double_entry function. To add an equivalent balance_sheet_account_type
-            # add_double_entry(transaction['transactionDate'], transaction['transactionInfo'], item_type_id['id'], transaction_amount)
-
+            add_double_entry(file_id['id'], transaction['transactionDate'], transaction['transactionInfo'], item_type_id['id'], transaction_amount, transaction['cardType'], transaction['cardProvider'])
+           
             # Insert into user logs
             db.execute(
                 'INSERT INTO logs (user_id, action_type, action_to)'
@@ -878,8 +879,40 @@ def add():
 
 
 # Function to add designated balance_sheet_account (asset/libilities) based on revenue/expense transaction
-# def add_double_entry(transaction_date, transaction_info, item_type_id, transaction_amount):
-    ...
-    # Check if debit card transaction card_type
+def add_double_entry(file_id, transaction_date, transaction_info, item_type_id, transaction_amount, card_type, card_provider):
+    print('called')
+    db = get_db()
+    # Check if transaction_info is credit card payment
+    pattern = r"Payment to (.+) Credit card"
+    
+    if (re.match(pattern, transaction_info)):
+        print ('nothing to do')
+    
+    else:
+        # Check if expense or revenue transaction, if revenue, (+)  if expense (-)
+        print('ok')
+        account_type = db.execute(
+            'SELECT * FROM sub_account_items WHERE id = ? and source = 0'
+            ' UNION SELECT * FROM sub_account_items WHERE id = ? and source = ?',
+            (item_type_id, item_type_id, g.user['id'])
+        ).fetchone()
 
-        # Check if expense or revenue transaction, if revenue, (+)  if expense (-) 
+         # Check the item_type_id of card_type and card_provider
+        source_item_type_id = db.execute(
+            'SELECT * FROM sub_account_items WHERE item_type LIKE ?', ('{} {} -user{}'.format(card_provider, card_type.replace('_', ' '), g.user['id']),)
+        ).fetchone() 
+
+        print(source_item_type_id['id'])
+
+        equivalent_transaction_amount = transaction_amount
+
+        # If account_type is expense, subtract.
+        if account_type['balance_sheet_account_type'] == 'expense':
+            # Add the same amount to asset
+            equivalent_transaction_amount = -1 * equivalent_transaction_amount
+
+        db.execute(
+            'INSERT INTO transactions (file_id, transaction_date, transaction_info, transaction_amount, sub_account_item_id)'
+            ' VALUES (?, ?, ?, ?, ?)', (file_id, transaction_date, transaction_info, equivalent_transaction_amount, source_item_type_id['id'])
+        )
+        db.commit()
