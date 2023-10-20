@@ -2,7 +2,7 @@
 // Function to Initiate Publishing of edited data
 
 document.getElementById('publishBtn').addEventListener('click', () => {
-    console.log('ok');
+    //console.log('ok');
 
     fetch('/publish', {
         method: 'POST',
@@ -71,7 +71,10 @@ function updateTable() {
         //Update the table content with fetched HTML
         document.getElementById('all').click();
         const tbody = document.querySelector('#editTbody');
-        tbody.innerHTML = data.table_html;
+        console.log(tbody);
+        if (tbody) {
+            tbody.innerHTML = data.table_html;
+        }
         // Display success message
         sortSuccessMessage.classList.remove('d-none');
         sortSuccessMessage.classList.add('alert-success');

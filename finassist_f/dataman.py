@@ -277,9 +277,10 @@ def update():
 
                      # Check if item_type_select['balance_sheet_account_type'] is Revenue or Asset
                     if item_type_select['balance_sheet_account_type'] in CREDIT_POSITIVE:
+                        print('asset')
                         db.execute(
                             'UPDATE transactions SET sub_account_item_id = ?, transaction_amount = ?'
-                            ' WHERE id = ?', (item_type_select['id'], -1 * transactions['transaction_amount'],row['transaction_id'])
+                            ' WHERE id = ?', (item_type_select['id'], -1 * row['transaction_amount'], row['transaction_id'])
                         )
                         db.commit()                    
                     else:
@@ -409,11 +410,16 @@ def delete_transaction():
                                         transaction['transaction_info'],
                                         transaction['transaction_amount'])
     
+
+
     # Implement the Delete logic here
     db.execute(
         'DELETE FROM transactions WHERE id = ?', (transaction_id,)
     )
     db.commit()
+
+    # Get the file id to update the aggregate
+    update_current_payable(transaction['file_id'])
 
     # Insert into user logs
     db.execute(
@@ -553,7 +559,7 @@ def manual_entry():
         
         for transaction in data:
             # Check if card Provider is included in the item_type check the card_provider and card_type
-            if transaction['itemType'] == 'default_current_account':
+            if transaction['itemType'] == 'default_current_account' or transaction['itemType'] == 'payable':
                 card_provider = transaction['cardProvider']
                 card_type = transaction['cardType']
 
@@ -574,7 +580,7 @@ def manual_entry():
                         )
                         db.commit()
                     else:
-                        print('not ok')
+                        print('not new')
                         pass
 
                 elif card_type == 'debit_card':
@@ -590,7 +596,7 @@ def manual_entry():
                         )
                         db.commit()
                     else:
-                        print('not ok')
+                        print('not new')
                         pass
                 
                 item_type_id = db.execute(
@@ -618,12 +624,29 @@ def manual_entry():
                 ' ORDER BY id DESC', (g.user['log_session_id'], 'manual_entry')
             ).fetchone()
             print(transaction['itemType'])
+
+            # payments should incur negative in cash/asset transactions. Check what type of 
+            # Balance sheet account type is the transaction
+            balance_sheet_account_type = db.execute(
+                'SELECT balance_sheet_account_type FROM sub_account_items WHERE id = ?', (item_type_id['id'],)
+            ).fetchone()
+            print(balance_sheet_account_type[0])
+            transaction_amount = float(transaction['transactionAmount'])
+
+            if balance_sheet_account_type[0] == 'asset':  # This is hard coded.
+                print('ok')
+                transaction_amount = -1 * transaction_amount
+
             db.execute(
                 'INSERT INTO transactions (file_id, transaction_date, transaction_info, transaction_amount, sub_account_item_id)'
                 ' VALUES (?, ?, ?, ?, ?)', (file_id['id'], transaction['transactionDate'], transaction['transactionInfo'], 
-                float(transaction['transactionAmount']), item_type_id['id'])
+                transaction_amount, item_type_id['id'])
             )
             db.commit()
+
+            # call add_double_entry function. To add an equivalent balance_sheet_account_type
+            # add_double_entry(transaction['transactionDate'], transaction['transactionInfo'], item_type_id['id'], transaction_amount)
+
             # Insert into user logs
             db.execute(
                 'INSERT INTO logs (user_id, action_type, action_to)'
@@ -634,6 +657,8 @@ def manual_entry():
             db.commit()   
 
         flash('Transactions has been added.')
+
+        # add_more_html = render_template('dataman/add_more.html', transactions=transactions, table_headers=TABLE_HEADERS, item_types=item_types)
 
         response = {'success': True, 'message': 'Data processed successfully'} 
         return jsonify(response), 200
@@ -664,8 +689,6 @@ def publish():
     ).fetchall()
 
     publish = []
-
-    #urrent_payable = 0
         
     for transaction in transactions:
         transaction_dict = {
@@ -678,12 +701,39 @@ def publish():
         }
         publish.append(transaction_dict)
 
+    
+    # This is to be applied during an Uploaded file 
+    # Retrieve the file_id and details of the uploaded file
+        
+    try:
+        current_payable_file_name = ((list(set([row['filename'] for row in transactions]))).remove('manual_entry'))[0]
+    except (ValueError, TypeError):
+        current_payable_file_name = ((list(set([row['filename'] for row in transactions]))))[0]
+
+
+    # print(list(set([row['filename'] for row in transactions])))
+    
+    print(current_payable_file_name)
+
+    if not current_payable_file_name == 'manual_entry':
+    # Retrieve file id based on name
+        print('ok')
+        current_payable_file_id = db.execute(
+            'SELECT files.id FROM files '
+            ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
+            ' JOIN users ON log_sessions.user_id = users.id'
+            ' WHERE filename = ? AND users.id = ?', (current_payable_file_name, g.user['id'])
+        ).fetchone()[0]
+
+        add_current_payable(current_payable_file_id)
+    else:
+        pass
 
     #print(publish)
     transaction_id_list = [row['transaction_id'] for row in transactions]
 
     try:
-        #Tag transactions as published
+        # Tag transactions as published
         for transaction_id in transaction_id_list:
             db.execute(
                 'UPDATE transactions SET publish = ? WHERE id = ?',
@@ -701,6 +751,76 @@ def publish():
 
     except Exception as e:
         return jsonify({'error': 'An error occured'}), 500    
+
+
+# Function to add a payable account (credit_card) and add provide a total payable 
+# based on the uploaded file
+def add_current_payable(file_id):
+    db = get_db()
+
+    # Get last date from the file_id
+    date = db.execute(
+        'SELECT transaction_date FROM transactions WHERE file_id = ? ORDER BY transaction_date DESC',
+        (file_id,)
+    ).fetchone()[0]
+
+    file_to_update = db.execute(
+        'SELECT * FROM files WHERE id = ?', (file_id,)
+    ).fetchone()
+
+    # Retrieve sub_account_id of the card_provider
+    card_provider_item_type = db.execute(
+        'SELECT * FROM sub_account_items WHERE item_type LIKE ? AND source = ?',
+        ('{} {} %'.format(file_to_update['card_provider'], file_to_update['card_type']), g.user['id'])
+    ).fetchone()
+
+    # Retrieve Total debit to the card_provider from file_id
+    total_payable = db.execute(
+        'SELECT SUM(transaction_amount) FROM transactions WHERE transaction_amount > 0'
+        ' AND file_id = ?', (file_id,)
+    ).fetchone()[0]
+
+    # date = file_to_update['upload_date']
+    # formatted_date = (datetime.strptime(date, '%Y-%m-%d %H:%M:%S')).strftime('%Y-%m-%d')
+    print(file_id)
+    print(total_payable)
+    # Insert Into transactions
+    db.execute(
+        'INSERT INTO transactions (file_id, transaction_date, transaction_info, transaction_amount, sub_account_item_id, publish)'
+        ' VALUES (?, ?, ?, ?, ?, ?)', (file_id, date, 
+                                 'Aggregate PAYABLE to {} {}'.format(file_to_update['card_provider'], file_to_update['card_type'].replace('_', ' ')),
+                                 total_payable ,card_provider_item_type['id'], 'published')
+    )
+    db.commit()
+
+
+# Function to update existing payable account (credit card) - Liability
+def update_current_payable(file_id):
+    db = get_db()
+
+    # Get Aggregate transaction details
+    transaction_to_update = db.execute(
+        'SELECT * FROM transactions WHERE transaction_info LIKE ? AND file_id = ?', ('Aggregate PAYABLE to%' ,file_id)
+    ).fetchone()
+    if transaction_to_update is not None:
+        # Get Updated value except
+        total_payable = db.execute(
+            'SELECT SUM(transaction_amount) FROM transactions WHERE transaction_amount > 0'
+            ' AND file_id = ?', (file_id,)
+        ).fetchone()[0]
+
+        total_payable = total_payable - transaction_to_update['transaction_amount']
+
+        # Update the Aggregate payable
+        db.execute(
+            'UPDATE transactions SET transaction_amount = ? WHERE id = ?', (total_payable, transaction_to_update['id'])
+        )
+        db.commit()
+    
+    else:
+        print('nothing to update')
+        pass
+
 
 
 # Function to add transactions manually (main)
@@ -755,3 +875,11 @@ def add():
     return render_template('dataman/add.html', transactions=transactions, 
                 table_headers=TABLE_HEADERS, item_types=item_types, card_provider_set=card_provider_set, 
                 all_item_types=all_item_types )
+
+
+# Function to add designated balance_sheet_account (asset/libilities) based on revenue/expense transaction
+# def add_double_entry(transaction_date, transaction_info, item_type_id, transaction_amount):
+    ...
+    # Check if debit card transaction card_type
+
+        # Check if expense or revenue transaction, if revenue, (+)  if expense (-) 
