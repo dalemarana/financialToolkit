@@ -643,6 +643,10 @@ def manual_entry():
                 transaction_amount, item_type_id['id'])
             )
             db.commit()
+
+            # call add_double_entry function. To add an equivalent balance_sheet_account_type
+            # add_double_entry(transaction['transactionDate'], transaction['transactionInfo'], item_type_id['id'], transaction_amount)
+
             # Insert into user logs
             db.execute(
                 'INSERT INTO logs (user_id, action_type, action_to)'
@@ -748,6 +752,9 @@ def publish():
     except Exception as e:
         return jsonify({'error': 'An error occured'}), 500    
 
+
+# Function to add a payable account (credit_card) and add provide a total payable 
+# based on the uploaded file
 def add_current_payable(file_id):
     db = get_db()
 
@@ -787,8 +794,7 @@ def add_current_payable(file_id):
     db.commit()
 
 
-
-
+# Function to update existing payable account (credit card) - Liability
 def update_current_payable(file_id):
     db = get_db()
 
@@ -814,7 +820,6 @@ def update_current_payable(file_id):
     else:
         print('nothing to update')
         pass
-
 
 
 
@@ -870,3 +875,11 @@ def add():
     return render_template('dataman/add.html', transactions=transactions, 
                 table_headers=TABLE_HEADERS, item_types=item_types, card_provider_set=card_provider_set, 
                 all_item_types=all_item_types )
+
+
+# Function to add designated balance_sheet_account (asset/libilities) based on revenue/expense transaction
+# def add_double_entry(transaction_date, transaction_info, item_type_id, transaction_amount):
+    ...
+    # Check if debit card transaction card_type
+
+        # Check if expense or revenue transaction, if revenue, (+)  if expense (-) 
