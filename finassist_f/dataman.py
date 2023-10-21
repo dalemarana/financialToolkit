@@ -315,7 +315,7 @@ def update():
 @bp.route('/search')
 def search():
     q = request.args.get('q')
-    print(q)
+    #print(q)
     db = get_db()
     if q:
         try:
@@ -329,7 +329,9 @@ def search():
                 ' JOIN users ON log_sessions.user_id = users.id'
                 ' WHERE users.id = ?'
                 ' AND transaction_info LIKE ?'
-                ' ORDER BY transaction_date DESC', (g.user['id'], '%' + q + '%')
+                ' GROUP BY transaction_info'
+                ' ORDER BY transaction_date DESC'
+                ' LIMIT 8', (g.user['id'], '%' + q + '%')
             ).fetchall()
         
         except TypeError:
@@ -346,7 +348,9 @@ def search():
             ' JOIN users ON log_sessions.user_id = users.id'
             ' WHERE users.id = ?'
             ' AND transaction_amount > 0'
-            ' ORDER BY transaction_date DESC', (g.user['id'],)
+            ' GROUP BY transaction_info'
+            ' ORDER BY transaction_date DESC'
+            ' LIMIT 8', (g.user['id'],)
         ).fetchall()
 
     vendor_dict = {vendor['transaction_id']: dict(vendor) for vendor in vendors}
@@ -934,3 +938,97 @@ def add_double_entry(file_id, transaction_date, transaction_info, item_type_id, 
 
 
 # Endpoint for Manual Entry transaction_info suggest
+@bp.route('/manual_entry_suggest')
+def manual_entry_suggest():
+    q = request.args.get('q')
+    #print(q)
+    db = get_db()
+    if q:
+        try:
+            transaction_infos = db.execute(
+                'SELECT files.id AS file_id, filename, card_provider, card_type, '
+                ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
+                ' item_type, sub_account_type, balance_sheet_account_type'                    
+                ' FROM transactions JOIN files ON transactions.file_id = files.id '
+                ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
+                ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
+                ' JOIN users ON log_sessions.user_id = users.id'
+                ' WHERE users.id = ?'
+                ' AND filename = ?'
+                ' AND transaction_info LIKE ?'
+                ' GROUP BY transaction_info'
+                ' ORDER BY transaction_date DESC'
+                ' LIMIT 5', (g.user['id'], 'manual_entry','%' + q + '%')
+            ).fetchall()
+        
+        except TypeError:
+            print('search error')
+        
+    else:
+        transaction_infos = db.execute(
+            'SELECT files.id AS file_id, filename, card_provider, card_type, '
+            ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
+            ' item_type, sub_account_type, balance_sheet_account_type'                    
+            ' FROM transactions JOIN files ON transactions.file_id = files.id '
+            ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
+            ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
+            ' JOIN users ON log_sessions.user_id = users.id'
+            ' WHERE users.id = ?'
+            ' AND filename = ?'
+            ' AND transaction_amount > 0'
+            ' GROUP BY transaction_info'
+            ' ORDER BY transaction_date DESC', (g.user['id'], 'manual_entry')
+        ).fetchall()
+
+    transaction_dict = {info['transaction_id']: dict(info) for info in transaction_infos}
+    #print(vendor_dict)
+    return jsonify(transaction_dict)
+
+
+# Function to provide input values for card_provider and card type based on 
+# selected transaction_info
+@bp.route('/card_provider_suggest')
+def card_provider_suggest():
+    q = request.args.get('q')
+    #print(q)
+    db = get_db()
+    if q:
+        try:
+            transaction_infos = db.execute(
+                'SELECT files.id AS file_id, filename, card_provider, card_type, '
+                ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
+                ' item_type, sub_account_type, balance_sheet_account_type'                    
+                ' FROM transactions JOIN files ON transactions.file_id = files.id '
+                ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
+                ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
+                ' JOIN users ON log_sessions.user_id = users.id'
+                ' WHERE users.id = ?'
+                ' AND filename = ?'
+                ' AND transaction_info LIKE ?'
+                ' GROUP BY card_provider'
+                ' ORDER BY transaction_date DESC'
+                ' LIMIT 5', (g.user['id'], 'manual_entry','%' + q + '%')
+            ).fetchall()
+        
+        except TypeError:
+            print('search error')
+        
+    else:
+        transaction_infos = db.execute(
+            'SELECT files.id AS file_id, filename, card_provider, card_type, '
+            ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
+            ' item_type, sub_account_type, balance_sheet_account_type'                    
+            ' FROM transactions JOIN files ON transactions.file_id = files.id '
+            ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
+            ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
+            ' JOIN users ON log_sessions.user_id = users.id'
+            ' WHERE users.id = ?'
+            ' AND filename = ?'
+            ' AND transaction_amount > 0'
+            ' GROUP BY card_provider'
+            ' ORDER BY transaction_date DESC', (g.user['id'], 'manual_entry')
+        ).fetchall()
+
+    transaction_dict = {info['transaction_id']: dict(info) for info in transaction_infos}
+    #print(vendor_dict)
+    return jsonify(transaction_dict)

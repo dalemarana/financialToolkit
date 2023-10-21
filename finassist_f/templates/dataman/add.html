@@ -156,7 +156,11 @@
                 </div>
                 <div class="input-group mt-1 manual-transactions" style="font-size: x-small;">
                     <input type="date" aria-label="transaction date" placeholder="Date of Transaction" class="form-control transaction_date" required style="font-size: small;">
-                    <input type="text" aria-label="transaction info" placeholder="Transaction Info" class="form-control transaction_info" required style="font-size: small;">
+                    <input type="text" aria-label="transaction info" list="datalistOptions" placeholder="Transaction Info" class="form-control transaction_info" required style="font-size: small;">
+                    <datalist id="datalistOptions">
+                        <!-- integrate javascript here to make suggestions -->
+                        <option value="Start typing to get suggestions.">
+                    </datalist>
                     <select class="form-select item_type" required style="font-size: small;">
                         {% for type in all_item_types %}
                         <option value="{{ type }}">{{ type.replace("_", " ").capitalize() }}</option>

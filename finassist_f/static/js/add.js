@@ -112,6 +112,7 @@ document.getElementById('addTransactions').addEventListener('click', () => {
     // Append the cloned input group to the form
     document.getElementById('manualForm').appendChild(clone);
     manualDelButton();
+    manualEntrySuggest();
 });
 
 
@@ -137,3 +138,59 @@ function manualDelButton() {
 function capitalize(string) {
     return string.charAt(0).toUpperCase() + string.slice(1);
 }
+
+//--------------------------------------------------------------------------------------
+// Function to Initiate Transaction info suggest
+
+function manualEntrySuggest() {
+    const transactionInfos = document.querySelectorAll('.form-control.transaction_info');
+    const itemTypes = document.querySelectorAll('.form-select.item_type');
+    const cardProviders = document.querySelectorAll('.form-control.cardprovider');
+    const cardTypes = document.querySelectorAll('.form-select.card_type');
+    const transactionAmounts = document.querySelectorAll('.form-control.transaction_amount');
+
+    transactionInfos.forEach((transactionInfo, index) => {
+        transactionInfo.addEventListener('input', async function () {
+            let response = await fetch('manual_entry_suggest?q=' + transactionInfo.value);
+            let suggestions = await response.json();
+
+            //console.log(suggestions)
+            let suggest = '';
+            for (let id in suggestions) {
+                let transaction_info = suggestions[id].transaction_info.replace('<', '&lt;').replace('&', '&amp;');
+                
+                suggest += '<option value="' + transaction_info + '">'
+            }
+            let suggestInput = document.getElementById(transactionInfo.getAttribute('list'));
+            suggestInput.innerHTML = suggest;
+
+            transactionInfo.addEventListener('blur', () => {
+                //console.log(transactionInfo.value);
+                const selectedTransactionInfo = transactionInfo.value;
+                const suggestionArray = Object.values(suggestions);
+                const selectedSuggestion = suggestionArray.find(suggestion => suggestion.transaction_info === selectedTransactionInfo);
+                
+                if (selectedSuggestion) {
+                    itemTypes[index].value = selectedSuggestion.item_type;
+                    cardProviders[index].value = selectedSuggestion.card_provider;
+                    cardTypes[index].value = selectedSuggestion.card_type;
+                    transactionAmounts[index].value = selectedSuggestion.transaction_amount;
+                } else {
+                    itemTypes[index].value = '';
+                    cardProviders[index].value = '';
+                    cardTypes[index].value = '';
+                    transactionAmounts[index].value = '';
+                }
+    
+            });
+
+        });
+
+
+
+    });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    manualEntrySuggest();
+});
