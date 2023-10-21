@@ -555,7 +555,7 @@ def manual_entry():
         # Parse JSON from request
         data = request.get_json()
         
-        print(data)
+        # print(data)
         db = get_db()
         
         for transaction in data:
@@ -610,7 +610,7 @@ def manual_entry():
                 ).fetchone()
 
 
-            print(item_type_id['id'])
+            # print(item_type_id['id'])
 
             db.execute(
                 'INSERT INTO files '
@@ -624,18 +624,23 @@ def manual_entry():
                 'SELECT * FROM files WHERE log_session_id = ? AND filename = ?'
                 ' ORDER BY id DESC', (g.user['log_session_id'], 'manual_entry')
             ).fetchone()
-            print(transaction['itemType'])
+            # print(transaction['itemType'])
 
             # payments should incur negative in cash/asset transactions. Check what type of 
             # Balance sheet account type is the transaction
             balance_sheet_account_type = db.execute(
                 'SELECT balance_sheet_account_type FROM sub_account_items WHERE id = ?', (item_type_id['id'],)
             ).fetchone()
-            print(balance_sheet_account_type[0])
+            # print(balance_sheet_account_type[0])
             transaction_amount = float(transaction['transactionAmount'])
 
-            if balance_sheet_account_type[0] == 'asset':  # This is hard coded.
-                print('ok')
+
+            # Check if transaction is a credit card payment. If yes, it should decrease asset
+            pattern = r"Payment to (.+) Credit card"
+    
+            if (re.match(pattern, transaction['transactionInfo'])):
+            # if balance_sheet_account_type[0] == 'asset':  # This is hard coded.
+                print('payment to credit card')
                 transaction_amount = -1 * transaction_amount
 
             db.execute(
@@ -645,6 +650,7 @@ def manual_entry():
             )
             db.commit()
 
+            print(file_id['id'])
             # call add_double_entry function. To add an equivalent balance_sheet_account_type
             add_double_entry(file_id['id'], transaction['transactionDate'], transaction['transactionInfo'], item_type_id['id'], transaction_amount, transaction['cardType'], transaction['cardProvider'])
            
@@ -880,17 +886,19 @@ def add():
 
 # Function to add designated balance_sheet_account (asset/libilities) based on revenue/expense transaction
 def add_double_entry(file_id, transaction_date, transaction_info, item_type_id, transaction_amount, card_type, card_provider):
-    print('called')
+    #print('called')
     db = get_db()
     # Check if transaction_info is credit card payment
     pattern = r"Payment to (.+) Credit card"
     
     if (re.match(pattern, transaction_info)):
-        print ('nothing to do')
+        #print ('nothing to do')
+
+        pass
     
     else:
         # Check if expense or revenue transaction, if revenue, (+)  if expense (-)
-        print('ok')
+        #print('ok')
         account_type = db.execute(
             'SELECT * FROM sub_account_items WHERE id = ? and source = 0'
             ' UNION SELECT * FROM sub_account_items WHERE id = ? and source = ?',
@@ -902,17 +910,27 @@ def add_double_entry(file_id, transaction_date, transaction_info, item_type_id, 
             'SELECT * FROM sub_account_items WHERE item_type LIKE ?', ('{} {} -user{}'.format(card_provider, card_type.replace('_', ' '), g.user['id']),)
         ).fetchone() 
 
-        print(source_item_type_id['id'])
-
         equivalent_transaction_amount = transaction_amount
+        #print(equivalent_transaction_amount)
+        #print(account_type['balance_sheet_account_type'])
 
-        # If account_type is expense, subtract.
-        if account_type['balance_sheet_account_type'] == 'expense':
-            # Add the same amount to asset
-            equivalent_transaction_amount = -1 * equivalent_transaction_amount
+        # If used card is debit card, asset and expense transactions should decrease the debit card
+        if card_type == 'debit_card' or card_type == 'cash_card':
+        # If account_type is expense or asset, subtract.
+            if account_type['balance_sheet_account_type'] == 'expense' or account_type['balance_sheet_account_type'] == 'asset':
+                # Add the same amount to asset
+                equivalent_transaction_amount = -1 * equivalent_transaction_amount
+
+        #print(equivalent_transaction_amount)
+        #print('{} '.format(source_item_type_id['id']))
 
         db.execute(
             'INSERT INTO transactions (file_id, transaction_date, transaction_info, transaction_amount, sub_account_item_id)'
             ' VALUES (?, ?, ?, ?, ?)', (file_id, transaction_date, transaction_info, equivalent_transaction_amount, source_item_type_id['id'])
         )
         db.commit()
+        print('double_entry done')
+
+
+
+# Endpoint for Manual Entry transaction_info suggest
