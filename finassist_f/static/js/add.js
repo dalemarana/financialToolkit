@@ -93,7 +93,9 @@ document.getElementById('manualForm').addEventListener('submit', (event) => {
 
 //--------------------------------------------------------------------------------
 // Function to add manual transaction rows
-document.getElementById('addTransactions').addEventListener('click', () => {
+document.getElementById('addTransactions').addEventListener('click', addManualTransactionRow);
+
+function addManualTransactionRow() {
     // Clone the existing group
     const inputGroup = document.querySelector('.input-group.manual-transactions');
     const clone = inputGroup.cloneNode(true);
@@ -111,9 +113,21 @@ document.getElementById('addTransactions').addEventListener('click', () => {
 
     // Append the cloned input group to the form
     document.getElementById('manualForm').appendChild(clone);
+    clone.querySelector('.form-control.transaction_date').focus();
     manualDelButton();
     manualEntrySuggest();
+}
+
+//-------------------------------------------------------------------------------------
+// Function to handle Tab key press in the transaction_amount field
+document.getElementById('manualForm').addEventListener('keydown', function (e) {
+    const target = e.target;
+    if (e.key === 'Tab' && target.classList.contains('transaction_amount')) {
+        e.preventDefault(); // Prevent the default Tab behavior
+        addManualTransactionRow();
+    }
 });
+
 
 
 //-------------------------------------------------------------------------------
@@ -181,16 +195,13 @@ function manualEntrySuggest() {
                     cardTypes[index].value = '';
                     transactionAmounts[index].value = '';
                 }
-    
             });
-
         });
-
-
-
     });
 }
 
 document.addEventListener('DOMContentLoaded', () => {
     manualEntrySuggest();
 });
+
+

@@ -456,6 +456,7 @@ def update_main():
         ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
         ' JOIN users ON log_sessions.user_id = users.id'
         ' WHERE users.id = ?'
+        ' AND publish IS NULL'
         ' AND transaction_amount > 0'
         ' ORDER BY transaction_date DESC', (g.user['id'],)
     ).fetchall()
@@ -469,7 +470,7 @@ def update_main():
         ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
         ' JOIN users ON log_sessions.user_id = users.id'
         ' WHERE users.id = ?'
-        ' AND sub_account_items.id = 33'
+        ' AND sub_account_items.id = 1'
         ' AND transaction_amount > 0'
         ' ORDER BY transaction_date DESC', (g.user['id'],)
     ).fetchall()
@@ -954,8 +955,13 @@ def manual_entry_suggest():
                 ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
                 ' JOIN users ON log_sessions.user_id = users.id'
                 ' WHERE users.id = ?'
-                ' AND filename = ?'
-                ' AND transaction_info LIKE ?'
+                    ' AND filename = ?'
+                    ' AND transaction_info LIKE ?'
+                    ' AND transaction_date = ('
+                    '    SELECT MAX(transaction_date)'
+                    '    FROM transactions AS t'
+                    '    WHERE t.transaction_info = transactions.transaction_info'
+                    ')'
                 ' GROUP BY transaction_info'
                 ' ORDER BY transaction_date DESC'
                 ' LIMIT 5', (g.user['id'], 'manual_entry','%' + q + '%')
