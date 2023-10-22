@@ -93,7 +93,9 @@ document.getElementById('manualForm').addEventListener('submit', (event) => {
 
 //--------------------------------------------------------------------------------
 // Function to add manual transaction rows
-document.getElementById('addTransactions').addEventListener('click', () => {
+document.getElementById('addTransactions').addEventListener('click', addManualTransactionRow);
+
+function addManualTransactionRow() {
     // Clone the existing group
     const inputGroup = document.querySelector('.input-group.manual-transactions');
     const clone = inputGroup.cloneNode(true);
@@ -111,8 +113,21 @@ document.getElementById('addTransactions').addEventListener('click', () => {
 
     // Append the cloned input group to the form
     document.getElementById('manualForm').appendChild(clone);
+    clone.querySelector('.form-control.transaction_date').focus();
     manualDelButton();
+    manualEntrySuggest();
+}
+
+//-------------------------------------------------------------------------------------
+// Function to handle Tab key press in the transaction_amount field
+document.getElementById('manualForm').addEventListener('keydown', function (e) {
+    const target = e.target;
+    if (e.key === 'Tab' && target.classList.contains('transaction_amount')) {
+        e.preventDefault(); // Prevent the default Tab behavior
+        addManualTransactionRow();
+    }
 });
+
 
 
 //-------------------------------------------------------------------------------
@@ -137,3 +152,56 @@ function manualDelButton() {
 function capitalize(string) {
     return string.charAt(0).toUpperCase() + string.slice(1);
 }
+
+//--------------------------------------------------------------------------------------
+// Function to Initiate Transaction info suggest
+
+function manualEntrySuggest() {
+    const transactionInfos = document.querySelectorAll('.form-control.transaction_info');
+    const itemTypes = document.querySelectorAll('.form-select.item_type');
+    const cardProviders = document.querySelectorAll('.form-control.cardprovider');
+    const cardTypes = document.querySelectorAll('.form-select.card_type');
+    const transactionAmounts = document.querySelectorAll('.form-control.transaction_amount');
+
+    transactionInfos.forEach((transactionInfo, index) => {
+        transactionInfo.addEventListener('input', async function () {
+            let response = await fetch('manual_entry_suggest?q=' + transactionInfo.value);
+            let suggestions = await response.json();
+
+            //console.log(suggestions)
+            let suggest = '';
+            for (let id in suggestions) {
+                let transaction_info = suggestions[id].transaction_info.replace('<', '&lt;').replace('&', '&amp;');
+                
+                suggest += '<option value="' + transaction_info + '">'
+            }
+            let suggestInput = document.getElementById(transactionInfo.getAttribute('list'));
+            suggestInput.innerHTML = suggest;
+
+            transactionInfo.addEventListener('blur', () => {
+                //console.log(transactionInfo.value);
+                const selectedTransactionInfo = transactionInfo.value;
+                const suggestionArray = Object.values(suggestions);
+                const selectedSuggestion = suggestionArray.find(suggestion => suggestion.transaction_info === selectedTransactionInfo);
+                
+                if (selectedSuggestion) {
+                    itemTypes[index].value = selectedSuggestion.item_type;
+                    cardProviders[index].value = selectedSuggestion.card_provider;
+                    cardTypes[index].value = selectedSuggestion.card_type;
+                    transactionAmounts[index].value = selectedSuggestion.transaction_amount;
+                } else {
+                    itemTypes[index].value = '';
+                    cardProviders[index].value = '';
+                    cardTypes[index].value = '';
+                    transactionAmounts[index].value = '';
+                }
+            });
+        });
+    });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    manualEntrySuggest();
+});
+
+

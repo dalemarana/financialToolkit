@@ -1,5 +1,6 @@
 import os
-    
+import re
+
 from flask import (
     Blueprint, flash, g, redirect, request, render_template, request, url_for, jsonify, current_app
 )
@@ -314,7 +315,7 @@ def update():
 @bp.route('/search')
 def search():
     q = request.args.get('q')
-    print(q)
+    #print(q)
     db = get_db()
     if q:
         try:
@@ -328,7 +329,9 @@ def search():
                 ' JOIN users ON log_sessions.user_id = users.id'
                 ' WHERE users.id = ?'
                 ' AND transaction_info LIKE ?'
-                ' ORDER BY transaction_date DESC', (g.user['id'], '%' + q + '%')
+                ' GROUP BY transaction_info'
+                ' ORDER BY transaction_date DESC'
+                ' LIMIT 8', (g.user['id'], '%' + q + '%')
             ).fetchall()
         
         except TypeError:
@@ -345,7 +348,9 @@ def search():
             ' JOIN users ON log_sessions.user_id = users.id'
             ' WHERE users.id = ?'
             ' AND transaction_amount > 0'
-            ' ORDER BY transaction_date DESC', (g.user['id'],)
+            ' GROUP BY transaction_info'
+            ' ORDER BY transaction_date DESC'
+            ' LIMIT 8', (g.user['id'],)
         ).fetchall()
 
     vendor_dict = {vendor['transaction_id']: dict(vendor) for vendor in vendors}
@@ -451,6 +456,7 @@ def update_main():
         ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
         ' JOIN users ON log_sessions.user_id = users.id'
         ' WHERE users.id = ?'
+        ' AND publish IS NULL'
         ' AND transaction_amount > 0'
         ' ORDER BY transaction_date DESC', (g.user['id'],)
     ).fetchall()
@@ -464,7 +470,7 @@ def update_main():
         ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
         ' JOIN users ON log_sessions.user_id = users.id'
         ' WHERE users.id = ?'
-        ' AND sub_account_items.id = 33'
+        ' AND sub_account_items.id = 1'
         ' AND transaction_amount > 0'
         ' ORDER BY transaction_date DESC', (g.user['id'],)
     ).fetchall()
@@ -554,7 +560,7 @@ def manual_entry():
         # Parse JSON from request
         data = request.get_json()
         
-        print(data)
+        # print(data)
         db = get_db()
         
         for transaction in data:
@@ -609,7 +615,7 @@ def manual_entry():
                 ).fetchone()
 
 
-            print(item_type_id['id'])
+            # print(item_type_id['id'])
 
             db.execute(
                 'INSERT INTO files '
@@ -623,18 +629,23 @@ def manual_entry():
                 'SELECT * FROM files WHERE log_session_id = ? AND filename = ?'
                 ' ORDER BY id DESC', (g.user['log_session_id'], 'manual_entry')
             ).fetchone()
-            print(transaction['itemType'])
+            # print(transaction['itemType'])
 
             # payments should incur negative in cash/asset transactions. Check what type of 
             # Balance sheet account type is the transaction
             balance_sheet_account_type = db.execute(
                 'SELECT balance_sheet_account_type FROM sub_account_items WHERE id = ?', (item_type_id['id'],)
             ).fetchone()
-            print(balance_sheet_account_type[0])
+            # print(balance_sheet_account_type[0])
             transaction_amount = float(transaction['transactionAmount'])
 
-            if balance_sheet_account_type[0] == 'asset':  # This is hard coded.
-                print('ok')
+
+            # Check if transaction is a credit card payment. If yes, it should decrease asset
+            pattern = r"Payment to (.+) Credit card"
+    
+            if (re.match(pattern, transaction['transactionInfo'])):
+            # if balance_sheet_account_type[0] == 'asset':  # This is hard coded.
+                print('payment to credit card')
                 transaction_amount = -1 * transaction_amount
 
             db.execute(
@@ -644,9 +655,10 @@ def manual_entry():
             )
             db.commit()
 
+            print(file_id['id'])
             # call add_double_entry function. To add an equivalent balance_sheet_account_type
-            # add_double_entry(transaction['transactionDate'], transaction['transactionInfo'], item_type_id['id'], transaction_amount)
-
+            add_double_entry(file_id['id'], transaction['transactionDate'], transaction['transactionInfo'], item_type_id['id'], transaction_amount, transaction['cardType'], transaction['cardProvider'])
+           
             # Insert into user logs
             db.execute(
                 'INSERT INTO logs (user_id, action_type, action_to)'
@@ -878,8 +890,151 @@ def add():
 
 
 # Function to add designated balance_sheet_account (asset/libilities) based on revenue/expense transaction
-# def add_double_entry(transaction_date, transaction_info, item_type_id, transaction_amount):
-    ...
-    # Check if debit card transaction card_type
+def add_double_entry(file_id, transaction_date, transaction_info, item_type_id, transaction_amount, card_type, card_provider):
+    #print('called')
+    db = get_db()
+    # Check if transaction_info is credit card payment
+    pattern = r"Payment to (.+) Credit card"
+    
+    if (re.match(pattern, transaction_info)):
+        #print ('nothing to do')
 
-        # Check if expense or revenue transaction, if revenue, (+)  if expense (-) 
+        pass
+    
+    else:
+        # Check if expense or revenue transaction, if revenue, (+)  if expense (-)
+        #print('ok')
+        account_type = db.execute(
+            'SELECT * FROM sub_account_items WHERE id = ? and source = 0'
+            ' UNION SELECT * FROM sub_account_items WHERE id = ? and source = ?',
+            (item_type_id, item_type_id, g.user['id'])
+        ).fetchone()
+
+         # Check the item_type_id of card_type and card_provider
+        source_item_type_id = db.execute(
+            'SELECT * FROM sub_account_items WHERE item_type LIKE ?', ('{} {} -user{}'.format(card_provider, card_type.replace('_', ' '), g.user['id']),)
+        ).fetchone() 
+
+        equivalent_transaction_amount = transaction_amount
+        #print(equivalent_transaction_amount)
+        #print(account_type['balance_sheet_account_type'])
+
+        # If used card is debit card, asset and expense transactions should decrease the debit card
+        if card_type == 'debit_card' or card_type == 'cash_card':
+        # If account_type is expense or asset, subtract.
+            if account_type['balance_sheet_account_type'] == 'expense' or account_type['balance_sheet_account_type'] == 'asset':
+                # Add the same amount to asset
+                equivalent_transaction_amount = -1 * equivalent_transaction_amount
+
+        #print(equivalent_transaction_amount)
+        #print('{} '.format(source_item_type_id['id']))
+
+        db.execute(
+            'INSERT INTO transactions (file_id, transaction_date, transaction_info, transaction_amount, sub_account_item_id)'
+            ' VALUES (?, ?, ?, ?, ?)', (file_id, transaction_date, transaction_info, equivalent_transaction_amount, source_item_type_id['id'])
+        )
+        db.commit()
+        print('double_entry done')
+
+
+
+# Endpoint for Manual Entry transaction_info suggest
+@bp.route('/manual_entry_suggest')
+def manual_entry_suggest():
+    q = request.args.get('q')
+    #print(q)
+    db = get_db()
+    if q:
+        try:
+            transaction_infos = db.execute(
+                'SELECT files.id AS file_id, filename, card_provider, card_type, '
+                ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
+                ' item_type, sub_account_type, balance_sheet_account_type'                    
+                ' FROM transactions JOIN files ON transactions.file_id = files.id '
+                ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
+                ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
+                ' JOIN users ON log_sessions.user_id = users.id'
+                ' WHERE users.id = ?'
+                    ' AND filename = ?'
+                    ' AND transaction_info LIKE ?'
+                    ' AND transaction_date = ('
+                    '    SELECT MAX(transaction_date)'
+                    '    FROM transactions AS t'
+                    '    WHERE t.transaction_info = transactions.transaction_info'
+                    ')'
+                ' GROUP BY transaction_info'
+                ' ORDER BY transaction_date DESC'
+                ' LIMIT 5', (g.user['id'], 'manual_entry','%' + q + '%')
+            ).fetchall()
+        
+        except TypeError:
+            print('search error')
+        
+    else:
+        transaction_infos = db.execute(
+            'SELECT files.id AS file_id, filename, card_provider, card_type, '
+            ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
+            ' item_type, sub_account_type, balance_sheet_account_type'                    
+            ' FROM transactions JOIN files ON transactions.file_id = files.id '
+            ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
+            ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
+            ' JOIN users ON log_sessions.user_id = users.id'
+            ' WHERE users.id = ?'
+            ' AND filename = ?'
+            ' AND transaction_amount > 0'
+            ' GROUP BY transaction_info'
+            ' ORDER BY transaction_date DESC', (g.user['id'], 'manual_entry')
+        ).fetchall()
+
+    transaction_dict = {info['transaction_id']: dict(info) for info in transaction_infos}
+    #print(vendor_dict)
+    return jsonify(transaction_dict)
+
+
+# Function to provide input values for card_provider and card type based on 
+# selected transaction_info
+@bp.route('/card_provider_suggest')
+def card_provider_suggest():
+    q = request.args.get('q')
+    #print(q)
+    db = get_db()
+    if q:
+        try:
+            transaction_infos = db.execute(
+                'SELECT files.id AS file_id, filename, card_provider, card_type, '
+                ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
+                ' item_type, sub_account_type, balance_sheet_account_type'                    
+                ' FROM transactions JOIN files ON transactions.file_id = files.id '
+                ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
+                ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
+                ' JOIN users ON log_sessions.user_id = users.id'
+                ' WHERE users.id = ?'
+                ' AND filename = ?'
+                ' AND transaction_info LIKE ?'
+                ' GROUP BY card_provider'
+                ' ORDER BY transaction_date DESC'
+                ' LIMIT 5', (g.user['id'], 'manual_entry','%' + q + '%')
+            ).fetchall()
+        
+        except TypeError:
+            print('search error')
+        
+    else:
+        transaction_infos = db.execute(
+            'SELECT files.id AS file_id, filename, card_provider, card_type, '
+            ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
+            ' item_type, sub_account_type, balance_sheet_account_type'                    
+            ' FROM transactions JOIN files ON transactions.file_id = files.id '
+            ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
+            ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
+            ' JOIN users ON log_sessions.user_id = users.id'
+            ' WHERE users.id = ?'
+            ' AND filename = ?'
+            ' AND transaction_amount > 0'
+            ' GROUP BY card_provider'
+            ' ORDER BY transaction_date DESC', (g.user['id'], 'manual_entry')
+        ).fetchall()
+
+    transaction_dict = {info['transaction_id']: dict(info) for info in transaction_infos}
+    #print(vendor_dict)
+    return jsonify(transaction_dict)

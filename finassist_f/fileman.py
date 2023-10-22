@@ -275,7 +275,7 @@ def pdfparse(file, file_id, date_format, year):
     return
 
 
-#function to update item_types of new transactions
+# Function to update item_types of new transactions
 def update_new_transactions(file_id):
     # Check if user has keywords from previous uploads/sorts
     db = get_db()
