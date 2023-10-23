@@ -1093,7 +1093,7 @@ def search_index():
                 ' JOIN users ON log_sessions.user_id = users.id'
                 ' WHERE users.id = ?'
                 ' AND card_type LIKE ?'
-                ' ORDER BY transaction_id DESC'
+                ' ORDER BY transaction_date DESC'
                 , (g.user['id'], '%' + q + '%', g.user['id'], '%' + q + '%', g.user['id'], '%' + q + '%', g.user['id'], '%' + q + '%', g.user['id'], '%' + q + '%')
             ).fetchall()
         

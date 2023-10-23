@@ -55,7 +55,7 @@ document.addEventListener('DOMContentLoaded', () =>{
 
     });
 
-
+    //console.log(itemTypeFilter);
 
 
     initiateDateDropdown();
@@ -117,12 +117,22 @@ function initiateDateDropdown() {
 // Select all dates
 const selectAllDates = document.getElementById('selectAllMonthsYears');
 
+
 selectAllDates.addEventListener('change', (event) => {
+    const yearCheckboxes = document.querySelectorAll('.form-check-input.year');
+
+    //console.log(yearCheckboxes);
+    yearCheckboxes.forEach((checkbox) => {
+        checkbox.checked = event.target.checked;
+        //console.log('ok')
+    });
+
     dateCheckboxes.forEach((checkbox) => {
         checkbox.checked = event.target.checked;
 
         filterTable('date', checkbox.id, checkbox.checked);
     });
+
 
     
 });
@@ -168,7 +178,7 @@ function filterTable(head, checkboxId, isVisible) {
         //console.log(checkboxId);
         //console.log(isVisible);
 
-        checkboxId = (checkboxId.replace('type_','').split('-'));
+        checkboxId = (checkboxId.replace('type_','').split('--'));
         //console.log(checkboxId);
         const checkboxDetails = {'balanceSheetAccountType': checkboxId[0],
                                 'subAccountType': checkboxId[1],
@@ -180,25 +190,30 @@ function filterTable(head, checkboxId, isVisible) {
     // Get all row ID to be hidden
     
     //console.log(datesForFilter[checkboxId[0]][checkboxId[1]]);
-    if (isVisible) {
-        rows.forEach((row) => {
-            if (filterRows.includes(row.id)) {
-                //console.log(row.id);
-                if(row.classList.contains('d-none')) {
-                    row.classList.remove('d-none');
+    if (filterRows) {
+        if (isVisible) {
+            rows.forEach((row) => {
+                if (filterRows.includes(row.id)) {
+                    //console.log(row.id);
+                    if(row.classList.contains('d-none')) {
+                        row.classList.remove('d-none');
+                    }
                 }
-            }
-        });
+            });
+        } else {
+            rows.forEach((row) => {
+                if (filterRows.includes(row.id)) {
+                    //console.log(row.id);
+                    if(!row.classList.contains('d-none')) {
+                        row.classList.add('d-none');
+                    }
+                }
+            });
+        }
     } else {
-        rows.forEach((row) => {
-            if (filterRows.includes(row.id)) {
-                //console.log(row.id);
-                if(!row.classList.contains('d-none')) {
-                    row.classList.add('d-none');
-                }
-            }
-        });
+        console.log('no rows')
     }
+
 
 }
  
@@ -242,7 +257,7 @@ function initiateItemTypeDropdown() {
     
     for (const balanceSheetAccountType of balanceSheetAccountTypes) {
 
-        array = chartData[balanceSheetAccountType].datasets;
+        let array = chartData[balanceSheetAccountType].datasets;
         if (!data[balanceSheetAccountType]) {
             data[balanceSheetAccountType] = {};
         }
@@ -256,13 +271,16 @@ function initiateItemTypeDropdown() {
 
         for (const subAccountType of subAccountTypes) {
             for(const filterSubAccountType of filterSubAccountTypes) {
-                if (subAccountType.toLowerCase().replace(' ', '_') == filterSubAccountType.toLowerCase().replace(' ','_')) {
+
+                if (subAccountType.toLowerCase().replace(/ /g, '_') == filterSubAccountType.toLowerCase().replace(/ /g,'_')) {
                     const filterData = itemTypeFilter[filterSubAccountType];
+                    //console.log(filterData);
                     Object.assign(
                         data[balanceSheetAccountType][subAccountType],
                         filterData
                     );
                 }
+                
             }
         }
     }
@@ -287,8 +305,8 @@ function initiateItemTypeDropdown() {
             const option = document.createElement('li');
             option.innerHTML = `<a class="dropdown-item">
             <div class="form-check">
-                <input class="form-check-input subAccountType ${balanceSheetAccountType}" type="checkbox" value="${balanceSheetAccountType}-${subAccountType}" id="type_${balanceSheetAccountType}-${subAccountType}" checked>
-                <label class="form-check-label" for="type_${balanceSheetAccountType}-${subAccountType}" style="font-size: small; text-decoration: none;">${capitalizeWord(subAccountType)}</label>
+                <input class="form-check-input subAccountType ${balanceSheetAccountType}" type="checkbox" value="${balanceSheetAccountType}--${subAccountType}" id="type_${balanceSheetAccountType}--${subAccountType}" checked>
+                <label class="form-check-label" for="type_${balanceSheetAccountType}--${subAccountType}" style="font-size: small; text-decoration: none;">${capitalizeWord(subAccountType)}</label>
             </div>
             </a>`;
             
@@ -297,8 +315,8 @@ function initiateItemTypeDropdown() {
                 const subOption = document.createElement('li');
                 subOption.innerHTML = `<a class="dropdown-item">
                 <div class="form-check">
-                    <input class="form-check-input itemType ${subAccountType} ${balanceSheetAccountType}" type="checkbox" value="${balanceSheetAccountType}-${subAccountType}-${itemType}" id="type_${balanceSheetAccountType}-${subAccountType}-${itemType}" checked>
-                    <label class="form-check-label" for="type_${balanceSheetAccountType}-${subAccountType}-${itemType}" style="font-size: x-small; text-decoration: none;">${itemType}</label>
+                    <input class="form-check-input itemType ${subAccountType} ${balanceSheetAccountType}" type="checkbox" value="${balanceSheetAccountType}--${subAccountType}--${itemType}" id="type_${balanceSheetAccountType}--${subAccountType}--${itemType}" checked>
+                    <label class="form-check-label" for="type_${balanceSheetAccountType}--${subAccountType}--${itemType}" style="font-size: x-small; text-decoration: none;">${itemType}</label>
                 </div>
                 </a>`;
                 
@@ -318,6 +336,7 @@ function initiateItemTypeDropdown() {
 
     subAccountTypeFilter();
     balanceSheetAccountFilter();
+    setupSelectAllCheckbox()
 
     itemTypeCheckboxes.forEach((checkbox) => {
         
@@ -337,13 +356,14 @@ function initiateItemTypeDropdown() {
 
 function subAccountTypeFilter() {
     const selectSubAccountTypeFilter = document.querySelectorAll('.form-check-input.subAccountType');
+    
     //console.log(selectSubAccountTypeFilter);
 
     selectSubAccountTypeFilter.forEach((subAccountType) => {
         subAccountType.addEventListener('change', (event) => {
             //console.log(subAccountType.value);
             let subAccountTypeValue = subAccountType.value;
-            subAccountTypeValue = (subAccountTypeValue.split('-'))[1];
+            subAccountTypeValue = (subAccountTypeValue.split('--'))[1];
             const itemTypes = document.querySelectorAll('.form-check-input.itemType.' + subAccountTypeValue);
             //console.log(months);
             itemTypes.forEach((itemType) => {
@@ -357,23 +377,23 @@ function subAccountTypeFilter() {
     });
 }
 
-function subAccountTypeBridge() {
+function subAccountTypeBridge(subAccountType, event) {
+    let subAccountTypeValue = subAccountType.value;
+    subAccountTypeValue = (subAccountTypeValue.split('--'))[1];
+
     const selectSubAccountTypeFilter = document.querySelectorAll('.form-check-input.subAccountType');
     //console.log(selectSubAccountTypeFilter);
+    const itemTypes = document.querySelectorAll('.form-check-input.itemType.' + subAccountTypeValue);
+    
+    itemTypes.forEach((itemType) => {
+        //console.log(month.id);
+        //console.log(itemType);
 
-    selectSubAccountTypeFilter.forEach((subAccountType) => {
-        let subAccountTypeValue = subAccountType.value;
-        subAccountTypeValue = (subAccountTypeValue.split('-'))[1];
-        const itemTypes = document.querySelectorAll('.form-check-input.itemType.' + subAccountTypeValue);
-        //console.log(months);
-        itemTypes.forEach((itemType) => {
-            //console.log(month.id);
+        itemType.checked = event.target.checked;
 
-            itemType.checked = event.target.checked;
-
-            filterTable('itemType', itemType.id, itemType.checked);
-        });
+        filterTable('itemType', itemType.id, itemType.checked);
     });
+
 }
 
 //----------------------------------------------------------------
@@ -392,11 +412,40 @@ function balanceSheetAccountFilter() {
 
 
             const subAccountTypes = document.querySelectorAll('.form-check-input.subAccountType.' + balanceSheetAccountTypeValue);
-            //console.log(subAccountTypes);
             subAccountTypes.forEach((subAccountType) => {
                 subAccountType.checked = event.target.checked;
-                subAccountTypeBridge();
+                //console.log(subAccountType);
+                subAccountTypeBridge(subAccountType, event);
             });
+            //subAccountTypeFilter();
         });
+    });
+}
+
+//----------------------------------------------------------------
+// Function SelectAll filter
+
+function setupSelectAllCheckbox() {
+    const selectAllCheckbox = document.getElementById('selectAllItemTypes');
+    const itemTypeCheckboxes = document.querySelectorAll('.form-check-input.itemType');
+    const subAccountTypeCheckboxes = document.querySelectorAll('.form-check-input.subAccountType');
+    const balanceSheetAccountTypeCheckboxes = document.querySelectorAll('.form-check-input.bsat');
+
+    selectAllCheckbox.addEventListener('change', (event) => {
+        itemTypeCheckboxes.forEach((itemType) => {
+            itemType.checked = event.target.checked;
+            filterTable('itemType', itemType.id, itemType.checked);
+        });
+
+        subAccountTypeCheckboxes.forEach((subAccountType) => {
+            subAccountType.checked = event.target.checked;
+            // If needed, call your subAccountTypeBridge function here
+        });
+
+        balanceSheetAccountTypeCheckboxes.forEach((bsat) => {
+            bsat.checked = event.target.checked;
+            // If needed, call your balanceSheetAccountFilter function here
+        }); 
+
     });
 }
