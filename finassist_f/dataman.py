@@ -1038,3 +1038,83 @@ def card_provider_suggest():
     transaction_dict = {info['transaction_id']: dict(info) for info in transaction_infos}
     #print(vendor_dict)
     return jsonify(transaction_dict)
+
+# To be used in Index page
+@bp.route('/search_index')
+def search_index():
+    q = request.args.get('q')
+    #print(q)
+    db = get_db()
+    if q:
+        try:
+            vendors = db.execute(
+                'SELECT DISTINCT files.id AS file_id, filename, card_provider, card_type, '
+                ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
+                ' item_type, sub_account_type, balance_sheet_account_type'        
+                ' FROM transactions JOIN files ON transactions.file_id = files.id '
+                ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
+                ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
+                ' JOIN users ON log_sessions.user_id = users.id'
+                ' WHERE users.id = ?'
+                ' AND transaction_info LIKE ?'
+                ' UNION SELECT DISTINCT files.id AS file_id, filename, card_provider, card_type, '
+                ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
+                ' item_type, sub_account_type, balance_sheet_account_type'        
+                ' FROM transactions JOIN files ON transactions.file_id = files.id '
+                ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
+                ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
+                ' JOIN users ON log_sessions.user_id = users.id'
+                ' WHERE users.id = ?'
+                ' AND item_type LIKE ?'
+                ' UNION SELECT DISTINCT files.id AS file_id, filename, card_provider, card_type, '
+                ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
+                ' item_type, sub_account_type, balance_sheet_account_type'        
+                ' FROM transactions JOIN files ON transactions.file_id = files.id '
+                ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
+                ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
+                ' JOIN users ON log_sessions.user_id = users.id'
+                ' WHERE users.id = ?'
+                ' AND sub_account_type LIKE ?'
+                ' UNION SELECT DISTINCT files.id AS file_id, filename, card_provider, card_type, '
+                ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
+                ' item_type, sub_account_type, balance_sheet_account_type'        
+                ' FROM transactions JOIN files ON transactions.file_id = files.id '
+                ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
+                ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
+                ' JOIN users ON log_sessions.user_id = users.id'
+                ' WHERE users.id = ?'
+                ' AND card_provider LIKE ?'
+                ' UNION SELECT DISTINCT files.id AS file_id, filename, card_provider, card_type, '
+                ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
+                ' item_type, sub_account_type, balance_sheet_account_type'        
+                ' FROM transactions JOIN files ON transactions.file_id = files.id '
+                ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
+                ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
+                ' JOIN users ON log_sessions.user_id = users.id'
+                ' WHERE users.id = ?'
+                ' AND card_type LIKE ?'
+                ' ORDER BY transaction_id DESC'
+                , (g.user['id'], '%' + q + '%', g.user['id'], '%' + q + '%', g.user['id'], '%' + q + '%', g.user['id'], '%' + q + '%', g.user['id'], '%' + q + '%')
+            ).fetchall()
+        
+        except TypeError:
+            print('search error')
+        
+    else:
+        vendors = db.execute(
+            'SELECT files.id AS file_id, filename, card_provider, card_type, '
+            ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
+            ' item_type, sub_account_type, balance_sheet_account_type'                    
+            ' FROM transactions JOIN files ON transactions.file_id = files.id '
+            ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
+            ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
+            ' JOIN users ON log_sessions.user_id = users.id'
+            ' WHERE users.id = ?'
+            ' AND transaction_amount > 0'
+            ' ORDER BY transaction_date DESC'
+            , (g.user['id'],)
+        ).fetchall()
+
+    vendor_dict = {vendor['transaction_id']: dict(vendor) for vendor in vendors}
+    #print(vendor_dict)
+    return jsonify(vendor_dict)
