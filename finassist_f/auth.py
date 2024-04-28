@@ -20,7 +20,7 @@ occupations_file = "/static/registration_lists/occupations.txt"
 bp = Blueprint('auth', __name__, url_prefix='/auth')
 
 
-# Registration page
+## ENDPOINT - Registration page
 @bp.route('/register', methods=('GET', 'POST'))
 def register():
 
@@ -112,7 +112,7 @@ def register():
     
 
 
-# Login page
+## ENDPOINT - Login Page
 @bp.route('/login', methods=('GET', 'POST'))
 def login():
     if request.method == 'POST':
@@ -210,7 +210,7 @@ def logout():
     return redirect(url_for('auth.login'))
 
 
-# Require authentication in other views
+## MIDDLEWARE - Require authentication in other views
 def login_required(view):
     @functools.wraps(view)
     def wrapped_view(**kwargs):
@@ -222,7 +222,8 @@ def login_required(view):
     return wrapped_view
 
 
-# Function to initialize registration form dropdowns
+"""needs to transfer to a separate module (i.e. Data Middleware Module)"""
+## MIDDLEWARE - Function to initialize registration form dropdowns
 def reg_list():
     # Civil Status
     civil_status = []

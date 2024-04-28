@@ -12,13 +12,13 @@ from datetime import datetime
 from finassist_f.auth import login_required
 from finassist_f.db import get_db
 
-# To be modified to become dynamic
+## To be modified to become dynamic
 TABLE_HEADERS = ['transaction_date', 'transaction_info', 'item_type', 'sub_account_type', 'card_provider', 'transaction_amount']
 
-# Credit Positive List
+## Credit Positive List
 CREDIT_POSITIVE = ['equity', 'liabilities', 'revenue']
 
-# Allowed upload extensions
+## Allowed upload extensions
 ALLOWED_EXTENSIONS = {'pdf'}
 
 env = Environment()
@@ -28,27 +28,67 @@ bp = Blueprint('dataman', __name__)
 
 CORS(bp)
 
+## Get Transactions refactor
+def get_transactions(db, user_id, conditions=None, group_by=None, limit=None, query_params=None):
+    if query_params is None:
+        query_params = []
+    query_params.insert(0, user_id)
 
+    where_conditions = ['users.id = ?']
+
+    if conditions:
+        where_conditions.extend(conditions)
+
+    conditions_str = ' AND '.join(where_conditions)
+
+    query = (
+        'SELECT files.id AS file_id, filename, card_provider, card_type, '
+        ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
+        ' item_type, sub_account_type, balance_sheet_account_type'        
+        ' FROM transactions JOIN files ON transactions.file_id = files.id '
+        ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
+        ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
+        ' JOIN users ON log_sessions.user_id = users.id'
+        f' WHERE {conditions_str}'
+    )
+
+    if group_by:
+        query += ' GROUP BY ' + group_by
+
+    query += ' ORDER BY transaction_date DESC'
+
+    if limit:
+        query += f' LIMIT {limit}'
+
+    result = db.execute(query, query_params).fetchall()
+
+    return result
+
+## ENDPOINT - Index Page
 @bp.route('/')
 @login_required
 def index():
     db = get_db()
     #print('index called')
 
-    # Retrieve uploaded transactions by the user
-    transactions = db.execute(
-        'SELECT files.id AS file_id, filename, card_provider, card_type, '
-        ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
-        ' item_type, sub_account_type, balance_sheet_account_type'
-        ' FROM transactions JOIN files ON transactions.file_id = files.id '
-        ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
-        ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
-        ' JOIN users ON log_sessions.user_id = users.id'
-        ' WHERE users.id = ?'
-        ' AND publish = ?'    
-        ' ORDER BY transaction_date DESC'
-        , (g.user['id'], 'published')
-    ).fetchall()
+    """CODE BLOCK A - publish = ?"""
+    # Retrieve uploaded - published transactions by the user
+    # transactions = db.execute(
+    #     'SELECT files.id AS file_id, filename, card_provider, card_type, '
+    #     ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
+    #     ' item_type, sub_account_type, balance_sheet_account_type'
+    #     ' FROM transactions JOIN files ON transactions.file_id = files.id '
+    #     ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
+    #     ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
+    #     ' JOIN users ON log_sessions.user_id = users.id'
+    #     ' WHERE users.id = ?'
+    #     ' AND publish = ?'    
+    #     ' ORDER BY transaction_date DESC'
+    #     , (g.user['id'], 'published')
+    # ).fetchall()
+
+    ## Refactored - get_transactions
+    transactions = get_transactions(db, g.user['id'], conditions=["publish = 'published'"])
 
     all_types = db.execute(
         'SELECT item_type FROM sub_account_items WHERE source = 0'
@@ -68,7 +108,7 @@ def index():
 
 
 
-# Endpoint to get the data for the dashboard charting
+# ENDPOINT - to get the data for the dashboard charting
 # This will run in the background after server side render ('/') is sent to
 # the client
 @bp.route('/get_data')
@@ -76,20 +116,25 @@ def index():
 def get_data():
     db = get_db()
 
+    """CODE BLOCK A - publish = ?"""
     # Retrieve all data for client-side rendering
-    data = db.execute(
-        'SELECT files.id AS file_id, filename, card_provider, card_type, '
-        ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
-        ' item_type, sub_account_type, balance_sheet_account_type'
-        ' FROM transactions JOIN files ON transactions.file_id = files.id '
-        ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
-        ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
-        ' JOIN users ON log_sessions.user_id = users.id'
-        ' WHERE users.id = ?'
-        ' AND publish = ?'    
-        ' ORDER BY transaction_date DESC'
-        , (g.user['id'], 'published')
-    ).fetchall()
+    # data = db.execute(
+    #     'SELECT files.id AS file_id, filename, card_provider, card_type, '
+    #     ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
+    #     ' item_type, sub_account_type, balance_sheet_account_type'
+    #     ' FROM transactions JOIN files ON transactions.file_id = files.id '
+    #     ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
+    #     ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
+    #     ' JOIN users ON log_sessions.user_id = users.id'
+    #     ' WHERE users.id = ?'
+    #     ' AND publish = ?'    
+    #     ' ORDER BY transaction_date DESC'
+    #     , (g.user['id'], 'published')
+    # ).fetchall()
+
+    ## Refactored - get_transactions
+    data = get_transactions(db, g.user['id'], conditions=["publish = 'published'"])
+
 
     # Convert to list of Dictionaries (JSON)
     data_list = []
@@ -106,34 +151,42 @@ def get_data():
 def update():
 
     db = get_db()
+
+    """CODE BLOCK A - transaction_amount > 0, publish is NULL"""
     # Retrieve uploaded transactions by the user. Filter blank item_types in transactions
-    transactions = db.execute(
-        'SELECT files.id AS file_id, filename, card_provider, card_type, '
-        ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
-        ' item_type, sub_account_type, balance_sheet_account_type'        
-        ' FROM transactions JOIN files ON transactions.file_id = files.id '
-        ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
-        ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
-        ' JOIN users ON log_sessions.user_id = users.id'
-        ' WHERE users.id = ?'
-        ' AND transaction_amount > 0'
-        ' AND publish is NULL'
-        ' ORDER BY transaction_date DESC', (g.user['id'], )
-    ).fetchall()
+    # transactions = db.execute(
+    #     'SELECT files.id AS file_id, filename, card_provider, card_type, '
+    #     ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
+    #     ' item_type, sub_account_type, balance_sheet_account_type'        
+    #     ' FROM transactions JOIN files ON transactions.file_id = files.id '
+    #     ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
+    #     ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
+    #     ' JOIN users ON log_sessions.user_id = users.id'
+    #     ' WHERE users.id = ?'
+    #     ' AND transaction_amount > 0'
+    #     ' AND publish is NULL'
+    #     ' ORDER BY transaction_date DESC', (g.user['id'],)
+    # ).fetchall()
 
-    all_card_providers = db.execute(
-        'SELECT files.id AS file_id, filename, card_provider, card_type, '
-        ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
-        ' item_type, sub_account_type, balance_sheet_account_type'        
-        ' FROM transactions JOIN files ON transactions.file_id = files.id '
-        ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
-        ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
-        ' JOIN users ON log_sessions.user_id = users.id'
-        ' WHERE users.id = ?'
-        ' ORDER BY transaction_date DESC', (g.user['id'], )
-    ).fetchall()
+    ## Refactored - get_transactions
+    transactions = get_transactions(db, g.user['id'], conditions=['transaction_amount > 0', 'publish is NULL'])
 
-    all_card_provider_options = set([row['card_provider'] for row in all_card_providers])
+    # all_card_providers = db.execute(
+    #     'SELECT files.id AS file_id, filename, card_provider, card_type, '
+    #     ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
+    #     ' item_type, sub_account_type, balance_sheet_account_type'        
+    #     ' FROM transactions JOIN files ON transactions.file_id = files.id '
+    #     ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
+    #     ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
+    #     ' JOIN users ON log_sessions.user_id = users.id'
+    #     ' WHERE users.id = ?'
+    #     ' ORDER BY transaction_date DESC', (g.user['id'], )
+    # ).fetchall()
+
+
+    # all_card_provider_options = set([row['card_provider'] for row in all_card_providers])
+    all_card_provider_options = set([row['card_provider'] for row in transactions])
+
 
     #print(transactions)
     transaction_id_list = [row['transaction_id'] for row in transactions]
@@ -142,21 +195,24 @@ def update():
     card_type_set = set([row['card_type'] for row in transactions])
     #print(card_provider_set)
 
+    """CODE BLOCK A - transaction_amount < 0, publish is NULL"""
     #Retrieve the payments made to this credit card
-    payments = db.execute(
-        'SELECT files.id AS file_id, filename, card_provider, card_type, '
-        ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
-        ' item_type, sub_account_type, balance_sheet_account_type'        
-        ' FROM transactions JOIN files ON transactions.file_id = files.id '
-        ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
-        ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
-        ' JOIN users ON log_sessions.user_id = users.id'
-        ' WHERE users.id = ?'
-        ' AND transaction_amount < 0'
-        ' AND publish is NULL'
-        ' ORDER BY transaction_date DESC', (g.user['id'], )    
-    ).fetchall()
+    # payments = db.execute(
+    #     'SELECT files.id AS file_id, filename, card_provider, card_type, '
+    #     ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
+    #     ' item_type, sub_account_type, balance_sheet_account_type'        
+    #     ' FROM transactions JOIN files ON transactions.file_id = files.id '
+    #     ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
+    #     ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
+    #     ' JOIN users ON log_sessions.user_id = users.id'
+    #     ' WHERE users.id = ?'
+    #     ' AND transaction_amount < 0'
+    #     ' AND publish is NULL'
+    #     ' ORDER BY transaction_date DESC', (g.user['id'], )    
+    # ).fetchall()
     
+    ## Refactored - get_transactions
+    payments = get_transactions(db, g.user['id'], conditions=['transaction_amount < 0', 'publish is NULL'])
     payments_id_list = [row['transaction_id'] for row in payments]
 
 
@@ -261,18 +317,30 @@ def update():
                 db.commit()
 
                 # Update database based on new keyword. Make sure to only update the transactions with blanks
-                transactions = db.execute(
-                    'SELECT files.id AS file_id, filename, card_provider, card_type, '
-                    ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
-                    ' item_type, sub_account_type, balance_sheet_account_type'        
-                    ' FROM transactions JOIN files ON transactions.file_id = files.id '
-                    ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
-                    ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
-                    ' JOIN users ON log_sessions.user_id = users.id'
-                    ' WHERE users.id = ? AND transactions.sub_account_item_id = ?'
-                    ' AND transaction_info LIKE ?'
-                    ' ORDER BY transaction_date DESC', (g.user['id'], 1, '%' + keyword + '%')
-                ).fetchall()
+                # transactions = db.execute(
+                #     'SELECT files.id AS file_id, filename, card_provider, card_type, '
+                #     ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
+                #     ' item_type, sub_account_type, balance_sheet_account_type'        
+                #     ' FROM transactions JOIN files ON transactions.file_id = files.id '
+                #     ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
+                #     ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
+                #     ' JOIN users ON log_sessions.user_id = users.id'
+                #     ' WHERE users.id = ? AND transactions.sub_account_item_id = ?'
+                #     ' AND transaction_info LIKE ?'
+                #     ' ORDER BY transaction_date DESC', (g.user['id'], 1, '%' + keyword + '%')
+                # ).fetchall()
+                
+                ## Refactored - get_transactions
+                conditions = [
+                    'transactions.sub_account_item_id = ?',
+                    'transaction_info LIKE ?'
+                ]
+                transactions = get_transactions(
+                    db, 
+                    g.user['id'], 
+                    conditions=conditions,
+                    query_params=[1, '%' + keyword + '%']
+                    )
 
                 for row in transactions:
 
@@ -319,39 +387,64 @@ def search():
     db = get_db()
     if q:
         try:
-            vendors = db.execute(
-                'SELECT DISTINCT files.id AS file_id, filename, card_provider, card_type, '
-                ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
-                ' item_type, sub_account_type, balance_sheet_account_type'        
-                ' FROM transactions JOIN files ON transactions.file_id = files.id '
-                ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
-                ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
-                ' JOIN users ON log_sessions.user_id = users.id'
-                ' WHERE users.id = ?'
-                ' AND transaction_info LIKE ?'
-                ' GROUP BY transaction_info'
-                ' ORDER BY transaction_date DESC'
-                ' LIMIT 8', (g.user['id'], '%' + q + '%')
-            ).fetchall()
-        
+            # vendors = db.execute(
+            #     'SELECT DISTINCT files.id AS file_id, filename, card_provider, card_type, '
+            #     ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
+            #     ' item_type, sub_account_type, balance_sheet_account_type'        
+            #     ' FROM transactions JOIN files ON transactions.file_id = files.id '
+            #     ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
+            #     ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
+            #     ' JOIN users ON log_sessions.user_id = users.id'
+            #     ' WHERE users.id = ?'
+            #     ' AND transaction_info LIKE ?'
+            #     ' GROUP BY transaction_info'
+            #     ' ORDER BY transaction_date DESC'
+            #     ' LIMIT 8', (g.user['id'], '%' + q + '%')
+            # ).fetchall()
+
+            ## Refactored - get_transactions
+            conditions = [
+                'transaction_info LIKE ?'
+            ]
+            vendors = get_transactions(
+                db,
+                g.user['id'],
+                conditions=conditions,
+                group_by='transaction_info',
+                limit=8,
+                query_params=['%' + q + '%']
+            )
+
         except TypeError:
             print('search error')
         
     else:
-        vendors = db.execute(
-            'SELECT files.id AS file_id, filename, card_provider, card_type, '
-            ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
-            ' item_type, sub_account_type, balance_sheet_account_type'                    
-            ' FROM transactions JOIN files ON transactions.file_id = files.id '
-            ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
-            ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
-            ' JOIN users ON log_sessions.user_id = users.id'
-            ' WHERE users.id = ?'
-            ' AND transaction_amount > 0'
-            ' GROUP BY transaction_info'
-            ' ORDER BY transaction_date DESC'
-            ' LIMIT 8', (g.user['id'],)
-        ).fetchall()
+        # vendors = db.execute(
+        #     'SELECT files.id AS file_id, filename, card_provider, card_type, '
+        #     ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
+        #     ' item_type, sub_account_type, balance_sheet_account_type'                    
+        #     ' FROM transactions JOIN files ON transactions.file_id = files.id '
+        #     ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
+        #     ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
+        #     ' JOIN users ON log_sessions.user_id = users.id'
+        #     ' WHERE users.id = ?'
+        #     ' AND transaction_amount > 0'
+        #     ' GROUP BY transaction_info'
+        #     ' ORDER BY transaction_date DESC'
+        #     ' LIMIT 8', (g.user['id'],)
+        # ).fetchall()
+
+        ## Refactored - get_transactions
+        conditions = [
+            'transaction_amount > 0'
+        ]
+        vendors = get_transactions(
+            db,
+            g.user['id'],
+            conditions=conditions,
+            group_by='transaction_info',
+            limit=8,
+        )
 
     vendor_dict = {vendor['transaction_id']: dict(vendor) for vendor in vendors}
     #print(vendor_dict)
@@ -362,17 +455,23 @@ def search():
 def get_updated_table_data():
     # Retrieve the updated table
     db = get_db()
-    transactions = db.execute(
-        'SELECT files.id AS file_id, filename, card_provider, card_type, '
-        ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
-        ' item_type, sub_account_type, balance_sheet_account_type'   
-        ' FROM transactions JOIN files ON transactions.file_id = files.id '
-        ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
-        ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
-        ' JOIN users ON log_sessions.user_id = users.id'
-        ' WHERE users.id = ?'
-        ' ORDER BY transaction_date DESC', (g.user['id'], )
-    ).fetchall()
+    # transactions = db.execute(
+    #     'SELECT files.id AS file_id, filename, card_provider, card_type, '
+    #     ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
+    #     ' item_type, sub_account_type, balance_sheet_account_type'   
+    #     ' FROM transactions JOIN files ON transactions.file_id = files.id '
+    #     ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
+    #     ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
+    #     ' JOIN users ON log_sessions.user_id = users.id'
+    #     ' WHERE users.id = ?'
+    #     ' ORDER BY transaction_date DESC', (g.user['id'], )
+    # ).fetchall()
+
+    ## Refactored - get_transactions
+    transactions = get_transactions(
+        db,
+        g.user['id']
+    )
 
     transactions_id_list = [row['transaction_id'] for row in transactions]
 
@@ -447,33 +546,48 @@ def update_main():
 
     
     # Retrieve uploaded transactions by the user. Filter blank item_types in transactions
-    transactions = db.execute(
-        'SELECT files.id AS file_id, filename, card_provider, card_type, '
-        ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
-        ' item_type, sub_account_type, balance_sheet_account_type'   
-        ' FROM transactions JOIN files ON transactions.file_id = files.id '
-        ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
-        ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
-        ' JOIN users ON log_sessions.user_id = users.id'
-        ' WHERE users.id = ?'
-        ' AND publish IS NULL'
-        ' AND transaction_amount > 0'
-        ' ORDER BY transaction_date DESC', (g.user['id'],)
-    ).fetchall()
+    # transactions = db.execute(
+    #     'SELECT files.id AS file_id, filename, card_provider, card_type, '
+    #     ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
+    #     ' item_type, sub_account_type, balance_sheet_account_type'   
+    #     ' FROM transactions JOIN files ON transactions.file_id = files.id '
+    #     ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
+    #     ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
+    #     ' JOIN users ON log_sessions.user_id = users.id'
+    #     ' WHERE users.id = ?'
+    #     ' AND publish IS NULL'
+    #     ' AND transaction_amount > 0'
+    #     ' ORDER BY transaction_date DESC', (g.user['id'],)
+    # ).fetchall()
 
-    blank_tx = db.execute(
-        'SELECT files.id AS file_id, filename, card_provider, card_type, '
-        ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
-        ' item_type, sub_account_type, balance_sheet_account_type'   
-        ' FROM transactions JOIN files ON transactions.file_id = files.id '
-        ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
-        ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
-        ' JOIN users ON log_sessions.user_id = users.id'
-        ' WHERE users.id = ?'
-        ' AND sub_account_items.id = 1'
-        ' AND transaction_amount > 0'
-        ' ORDER BY transaction_date DESC', (g.user['id'],)
-    ).fetchall()
+    ## Refactored - get_transactions
+    transactions = get_transactions(
+        db,
+        g.user['id'],
+        conditions=["publish IS NULL", "transaction_amount > 0"]
+    )
+
+    # blank_tx = db.execute(
+    #     'SELECT files.id AS file_id, filename, card_provider, card_type, '
+    #     ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
+    #     ' item_type, sub_account_type, balance_sheet_account_type'   
+    #     ' FROM transactions JOIN files ON transactions.file_id = files.id '
+    #     ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
+    #     ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
+    #     ' JOIN users ON log_sessions.user_id = users.id'
+    #     ' WHERE users.id = ?'
+    #     ' AND sub_account_items.id = 1'
+    #     ' AND transaction_amount > 0'
+    #     ' ORDER BY transaction_date DESC', (g.user['id'],)
+    # ).fetchall()
+
+    ## Refactored - get_transactions
+    blank_tx = get_transactions(
+        db,
+        g.user['id'],
+        conditions=["sub_account_items.id = 1", "transaction_amount > 0"]
+    )
+
     
     transaction_id_list = [row['transaction_id'] for row in transactions]
     blanks = [row['transaction_id'] for row in blank_tx]
@@ -687,18 +801,27 @@ def publish():
 
     db = get_db()
     # Retrieve uploaded transactions by the user. Filter blank item_types in transactions
-    transactions = db.execute(
-        'SELECT files.id AS file_id, filename, card_provider, card_type, '
-        ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
-        ' item_type, sub_account_type, balance_sheet_account_type'   
-        ' FROM transactions JOIN files ON transactions.file_id = files.id '
-        ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
-        ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
-        ' JOIN users ON log_sessions.user_id = users.id'
-        ' WHERE users.id = ?'
-        ' AND publish is NULL'
-        ' ORDER BY transaction_date DESC', (g.user['id'], )
-    ).fetchall()
+    # transactions = db.execute(
+    #     'SELECT files.id AS file_id, filename, card_provider, card_type, '
+    #     ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
+    #     ' item_type, sub_account_type, balance_sheet_account_type'   
+    #     ' FROM transactions JOIN files ON transactions.file_id = files.id '
+    #     ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
+    #     ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
+    #     ' JOIN users ON log_sessions.user_id = users.id'
+    #     ' WHERE users.id = ?'
+    #     ' AND publish is NULL'
+    #     ' ORDER BY transaction_date DESC', (g.user['id'], )
+    # ).fetchall()
+
+    ## Refactored - get_transactions
+    conditions = ["publish IS NULL"]
+    transactions = get_transactions(
+        db,
+        g.user['id'],
+        conditions=conditions
+    )
+
 
     publish = []
         
@@ -840,18 +963,23 @@ def update_current_payable(file_id):
 def add():
     db = get_db()
     # Retrieve uploaded transactions by the user. Filter blank item_types in transactions
-    transactions = db.execute(
-        'SELECT files.id AS file_id, filename, card_provider, card_type, '
-        ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
-        ' item_type, sub_account_type, balance_sheet_account_type'        
-        ' FROM transactions JOIN files ON transactions.file_id = files.id '
-        ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
-        ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
-        ' JOIN users ON log_sessions.user_id = users.id'
-        ' WHERE users.id = ?'
-        ' ORDER BY transaction_date DESC', (g.user['id'], )
-    ).fetchall()
+    # transactions = db.execute(
+    #     'SELECT files.id AS file_id, filename, card_provider, card_type, '
+    #     ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
+    #     ' item_type, sub_account_type, balance_sheet_account_type'        
+    #     ' FROM transactions JOIN files ON transactions.file_id = files.id '
+    #     ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
+    #     ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
+    #     ' JOIN users ON log_sessions.user_id = users.id'
+    #     ' WHERE users.id = ?'
+    #     ' ORDER BY transaction_date DESC', (g.user['id'], )
+    # ).fetchall()
 
+    ## Refactored - get_transactions
+    transactions = get_transactions(
+        db,
+        g.user['id']
+    )
    
     transaction_id_list = [row['transaction_id'] for row in transactions]
 
@@ -946,45 +1074,79 @@ def manual_entry_suggest():
     db = get_db()
     if q:
         try:
-            transaction_infos = db.execute(
-                'SELECT files.id AS file_id, filename, card_provider, card_type, '
-                ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
-                ' item_type, sub_account_type, balance_sheet_account_type'                    
-                ' FROM transactions JOIN files ON transactions.file_id = files.id '
-                ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
-                ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
-                ' JOIN users ON log_sessions.user_id = users.id'
-                ' WHERE users.id = ?'
-                    ' AND filename = ?'
-                    ' AND transaction_info LIKE ?'
-                    ' AND transaction_date = ('
-                    '    SELECT MAX(transaction_date)'
-                    '    FROM transactions AS t'
-                    '    WHERE t.transaction_info = transactions.transaction_info'
-                    ')'
-                ' GROUP BY transaction_info'
-                ' ORDER BY transaction_date DESC'
-                ' LIMIT 5', (g.user['id'], 'manual_entry','%' + q + '%')
-            ).fetchall()
+            # transaction_infos = db.execute(
+            #     'SELECT files.id AS file_id, filename, card_provider, card_type, '
+            #     ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
+            #     ' item_type, sub_account_type, balance_sheet_account_type'                    
+            #     ' FROM transactions JOIN files ON transactions.file_id = files.id '
+            #     ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
+            #     ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
+            #     ' JOIN users ON log_sessions.user_id = users.id'
+            #     ' WHERE users.id = ?'
+            #         ' AND filename = ?'
+            #         ' AND transaction_info LIKE ?'
+            #         ' AND transaction_date = ('
+            #         '    SELECT MAX(transaction_date)'
+            #         '    FROM transactions AS t'
+            #         '    WHERE t.transaction_info = transactions.transaction_info'
+            #         ')'
+            #     ' GROUP BY transaction_info'
+            #     ' ORDER BY transaction_date DESC'
+            #     ' LIMIT 5', (g.user['id'], 'manual_entry','%' + q + '%')
+            # ).fetchall()
         
+            ## Refactored - get_transactions
+            conditions = [
+                "filename = ?",
+                "transaction_info LIKE ?",
+                "transaction_date = (SELECT MAX(transaction_date) FROM transactions AS t WHERE t.transaction_info = transactions.transaction_info)"
+            ]
+            query_params = ['manual_entry', '%' + q + '%']
+
+            transaction_infos = get_transactions(
+                db,
+                g.user['id'],
+                conditions=conditions,
+                query_params=query_params,
+                group_by="transaction_info",  # Grouping by transaction_info
+                limit=5  # Limiting the results to 5
+            )
+
+
         except TypeError:
             print('search error')
         
     else:
-        transaction_infos = db.execute(
-            'SELECT files.id AS file_id, filename, card_provider, card_type, '
-            ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
-            ' item_type, sub_account_type, balance_sheet_account_type'                    
-            ' FROM transactions JOIN files ON transactions.file_id = files.id '
-            ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
-            ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
-            ' JOIN users ON log_sessions.user_id = users.id'
-            ' WHERE users.id = ?'
-            ' AND filename = ?'
-            ' AND transaction_amount > 0'
-            ' GROUP BY transaction_info'
-            ' ORDER BY transaction_date DESC', (g.user['id'], 'manual_entry')
-        ).fetchall()
+        # transaction_infos = db.execute(
+        #     'SELECT files.id AS file_id, filename, card_provider, card_type, '
+        #     ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
+        #     ' item_type, sub_account_type, balance_sheet_account_type'                    
+        #     ' FROM transactions JOIN files ON transactions.file_id = files.id '
+        #     ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
+        #     ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
+        #     ' JOIN users ON log_sessions.user_id = users.id'
+        #     ' WHERE users.id = ?'
+        #     ' AND filename = ?'
+        #     ' AND transaction_amount > 0'
+        #     ' GROUP BY transaction_info'
+        #     ' ORDER BY transaction_date DESC', (g.user['id'], 'manual_entry')
+        # ).fetchall()
+
+
+        ## Refactored - get_transactions
+        conditions = [
+            "filename = ?",
+            "transaction_amount > 0"
+        ]
+        query_params = ['manual_entry']
+
+        transaction_infos = get_transactions(
+            db,
+            g.user['id'],
+            conditions=conditions,
+            query_params=query_params,
+            group_by="transaction_info",  # Grouping by transaction_info
+        )
 
     transaction_dict = {info['transaction_id']: dict(info) for info in transaction_infos}
     #print(vendor_dict)
@@ -1000,40 +1162,72 @@ def card_provider_suggest():
     db = get_db()
     if q:
         try:
-            transaction_infos = db.execute(
-                'SELECT files.id AS file_id, filename, card_provider, card_type, '
-                ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
-                ' item_type, sub_account_type, balance_sheet_account_type'                    
-                ' FROM transactions JOIN files ON transactions.file_id = files.id '
-                ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
-                ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
-                ' JOIN users ON log_sessions.user_id = users.id'
-                ' WHERE users.id = ?'
-                ' AND filename = ?'
-                ' AND transaction_info LIKE ?'
-                ' GROUP BY card_provider'
-                ' ORDER BY transaction_date DESC'
-                ' LIMIT 5', (g.user['id'], 'manual_entry','%' + q + '%')
-            ).fetchall()
+            # transaction_infos = db.execute(
+            #     'SELECT files.id AS file_id, filename, card_provider, card_type, '
+            #     ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
+            #     ' item_type, sub_account_type, balance_sheet_account_type'                    
+            #     ' FROM transactions JOIN files ON transactions.file_id = files.id '
+            #     ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
+            #     ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
+            #     ' JOIN users ON log_sessions.user_id = users.id'
+            #     ' WHERE users.id = ?'
+            #     ' AND filename = ?'
+            #     ' AND transaction_info LIKE ?'
+            #     ' GROUP BY card_provider'
+            #     ' ORDER BY transaction_date DESC'
+            #     ' LIMIT 5', (g.user['id'], 'manual_entry','%' + q + '%')
+            # ).fetchall()
         
+            ## Refactored - get_transactions
+            conditions = [
+                "filename = ?",
+                "transaction_info LIKE ?"
+            ]
+            query_params = ['manual_entry', '%' + q + '%']
+
+            transaction_infos = get_transactions(
+                db,
+                g.user['id'],
+                conditions=conditions,
+                query_params=query_params,
+                group_by="card_provider",  # Grouping by card_provider
+                limit=5  # Limiting the results to 5
+            )
+
+
         except TypeError:
             print('search error')
         
     else:
-        transaction_infos = db.execute(
-            'SELECT files.id AS file_id, filename, card_provider, card_type, '
-            ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
-            ' item_type, sub_account_type, balance_sheet_account_type'                    
-            ' FROM transactions JOIN files ON transactions.file_id = files.id '
-            ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
-            ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
-            ' JOIN users ON log_sessions.user_id = users.id'
-            ' WHERE users.id = ?'
-            ' AND filename = ?'
-            ' AND transaction_amount > 0'
-            ' GROUP BY card_provider'
-            ' ORDER BY transaction_date DESC', (g.user['id'], 'manual_entry')
-        ).fetchall()
+        # transaction_infos = db.execute(
+        #     'SELECT files.id AS file_id, filename, card_provider, card_type, '
+        #     ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
+        #     ' item_type, sub_account_type, balance_sheet_account_type'                    
+        #     ' FROM transactions JOIN files ON transactions.file_id = files.id '
+        #     ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
+        #     ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
+        #     ' JOIN users ON log_sessions.user_id = users.id'
+        #     ' WHERE users.id = ?'
+        #     ' AND filename = ?'
+        #     ' AND transaction_amount > 0'
+        #     ' GROUP BY card_provider'
+        #     ' ORDER BY transaction_date DESC', (g.user['id'], 'manual_entry')
+        # ).fetchall()
+
+        ## Refactored - get_transactions
+        conditions = [
+            "filename = ?",
+            "transaction_amount > 0"
+        ]
+        query_params = ['manual_entry']
+
+        transaction_infos = get_transactions(
+            db,
+            g.user['id'],
+            conditions=conditions,
+            query_params=query_params,
+            group_by="card_provider",  # Grouping by card_provider
+        )
 
     transaction_dict = {info['transaction_id']: dict(info) for info in transaction_infos}
     #print(vendor_dict)
@@ -1047,74 +1241,112 @@ def search_index():
     db = get_db()
     if q:
         try:
-            vendors = db.execute(
-                'SELECT DISTINCT files.id AS file_id, filename, card_provider, card_type, '
-                ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
-                ' item_type, sub_account_type, balance_sheet_account_type'        
-                ' FROM transactions JOIN files ON transactions.file_id = files.id '
-                ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
-                ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
-                ' JOIN users ON log_sessions.user_id = users.id'
-                ' WHERE users.id = ?'
-                ' AND transaction_info LIKE ?'
-                ' UNION SELECT DISTINCT files.id AS file_id, filename, card_provider, card_type, '
-                ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
-                ' item_type, sub_account_type, balance_sheet_account_type'        
-                ' FROM transactions JOIN files ON transactions.file_id = files.id '
-                ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
-                ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
-                ' JOIN users ON log_sessions.user_id = users.id'
-                ' WHERE users.id = ?'
-                ' AND item_type LIKE ?'
-                ' UNION SELECT DISTINCT files.id AS file_id, filename, card_provider, card_type, '
-                ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
-                ' item_type, sub_account_type, balance_sheet_account_type'        
-                ' FROM transactions JOIN files ON transactions.file_id = files.id '
-                ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
-                ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
-                ' JOIN users ON log_sessions.user_id = users.id'
-                ' WHERE users.id = ?'
-                ' AND sub_account_type LIKE ?'
-                ' UNION SELECT DISTINCT files.id AS file_id, filename, card_provider, card_type, '
-                ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
-                ' item_type, sub_account_type, balance_sheet_account_type'        
-                ' FROM transactions JOIN files ON transactions.file_id = files.id '
-                ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
-                ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
-                ' JOIN users ON log_sessions.user_id = users.id'
-                ' WHERE users.id = ?'
-                ' AND card_provider LIKE ?'
-                ' UNION SELECT DISTINCT files.id AS file_id, filename, card_provider, card_type, '
-                ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
-                ' item_type, sub_account_type, balance_sheet_account_type'        
-                ' FROM transactions JOIN files ON transactions.file_id = files.id '
-                ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
-                ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
-                ' JOIN users ON log_sessions.user_id = users.id'
-                ' WHERE users.id = ?'
-                ' AND card_type LIKE ?'
-                ' ORDER BY transaction_date DESC'
-                , (g.user['id'], '%' + q + '%', g.user['id'], '%' + q + '%', g.user['id'], '%' + q + '%', g.user['id'], '%' + q + '%', g.user['id'], '%' + q + '%')
-            ).fetchall()
+            # vendors = db.execute(
+            #     'SELECT DISTINCT files.id AS file_id, filename, card_provider, card_type, '
+            #     ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
+            #     ' item_type, sub_account_type, balance_sheet_account_type'        
+            #     ' FROM transactions JOIN files ON transactions.file_id = files.id '
+            #     ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
+            #     ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
+            #     ' JOIN users ON log_sessions.user_id = users.id'
+            #     ' WHERE users.id = ?'
+            #     ' AND transaction_info LIKE ?'
+            #     ' UNION SELECT DISTINCT files.id AS file_id, filename, card_provider, card_type, '
+            #     ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
+            #     ' item_type, sub_account_type, balance_sheet_account_type'        
+            #     ' FROM transactions JOIN files ON transactions.file_id = files.id '
+            #     ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
+            #     ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
+            #     ' JOIN users ON log_sessions.user_id = users.id'
+            #     ' WHERE users.id = ?'
+            #     ' AND item_type LIKE ?'
+            #     ' UNION SELECT DISTINCT files.id AS file_id, filename, card_provider, card_type, '
+            #     ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
+            #     ' item_type, sub_account_type, balance_sheet_account_type'        
+            #     ' FROM transactions JOIN files ON transactions.file_id = files.id '
+            #     ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
+            #     ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
+            #     ' JOIN users ON log_sessions.user_id = users.id'
+            #     ' WHERE users.id = ?'
+            #     ' AND sub_account_type LIKE ?'
+            #     ' UNION SELECT DISTINCT files.id AS file_id, filename, card_provider, card_type, '
+            #     ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
+            #     ' item_type, sub_account_type, balance_sheet_account_type'        
+            #     ' FROM transactions JOIN files ON transactions.file_id = files.id '
+            #     ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
+            #     ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
+            #     ' JOIN users ON log_sessions.user_id = users.id'
+            #     ' WHERE users.id = ?'
+            #     ' AND card_provider LIKE ?'
+            #     ' UNION SELECT DISTINCT files.id AS file_id, filename, card_provider, card_type, '
+            #     ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
+            #     ' item_type, sub_account_type, balance_sheet_account_type'        
+            #     ' FROM transactions JOIN files ON transactions.file_id = files.id '
+            #     ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
+            #     ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
+            #     ' JOIN users ON log_sessions.user_id = users.id'
+            #     ' WHERE users.id = ?'
+            #     ' AND card_type LIKE ?'
+            #     ' ORDER BY transaction_date DESC'
+            #     , (g.user['id'], '%' + q + '%', g.user['id'], '%' + q + '%', g.user['id'], '%' + q + '%', g.user['id'], '%' + q + '%', g.user['id'], '%' + q + '%')
+            # ).fetchall()
+
+            ## Refactored - get_transactions (with tuple and for loop)
+            conditions_list = [
+                ("transaction_info LIKE ?", '%' + q + '%'),
+                ("item_type LIKE ?", '%' + q + '%'),
+                ("sub_account_type LIKE ?", '%' + q + '%'),
+                ("card_provider LIKE ?", '%' + q + '%'),
+                ("card_type LIKE ?", '%' + q + '%')
+            ]
+
+            vendors = []
+
+            for condition, query_param in conditions_list:
+                transactions = get_transactions(
+                    db,
+                    g.user['id'],
+                    conditions=[f"users.id = ? AND {condition}"],
+                    query_params=[g.user['id'], query_param]
+                )
+                vendors.extend(transactions)
+
+            # Sort the combined results by transaction_date
+            vendors.sort(key=lambda x: x['transaction_date'], reverse=True)
+            
         
         except TypeError:
             print('search error')
         
     else:
-        vendors = db.execute(
-            'SELECT files.id AS file_id, filename, card_provider, card_type, '
-            ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
-            ' item_type, sub_account_type, balance_sheet_account_type'                    
-            ' FROM transactions JOIN files ON transactions.file_id = files.id '
-            ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
-            ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
-            ' JOIN users ON log_sessions.user_id = users.id'
-            ' WHERE users.id = ?'
-            ' AND transaction_amount > 0'
-            ' ORDER BY transaction_date DESC'
-            , (g.user['id'],)
-        ).fetchall()
+        # vendors = db.execute(
+        #     'SELECT files.id AS file_id, filename, card_provider, card_type, '
+        #     ' transactions.id AS transaction_id, transaction_date, transaction_info, transaction_amount, publish,'
+        #     ' item_type, sub_account_type, balance_sheet_account_type'                    
+        #     ' FROM transactions JOIN files ON transactions.file_id = files.id '
+        #     ' JOIN sub_account_items ON transactions.sub_account_item_id = sub_account_items.id'
+        #     ' JOIN log_sessions ON files.log_session_id = log_sessions.id'
+        #     ' JOIN users ON log_sessions.user_id = users.id'
+        #     ' WHERE users.id = ?'
+        #     ' AND transaction_amount > 0'
+        #     ' ORDER BY transaction_date DESC'
+        #     , (g.user['id'],)
+        # ).fetchall()
+
+        ## Refactored - get_transactions
+        vendors = get_transactions(
+            db,
+            g.user['id'],
+            conditions=["transaction_amount > 0"]
+        )
+
 
     vendor_dict = {vendor['transaction_id']: dict(vendor) for vendor in vendors}
     #print(vendor_dict)
     return jsonify(vendor_dict)
+
+
+"""Method to save the uploaded and organized document to csv file"""
+@bp.route('/save', methods=['POST'])
+def save_csv():
+    """"""

@@ -1,0 +1,13 @@
+## INITIALIZING THE APP
+
+flask --app finassist_f run
+
+OR
+
+flask --app finassist_f run
+
+## INITIALIZING THE DATABASE
+
+flask --app proto2/finassist init-db
+
+
