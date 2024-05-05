@@ -16,6 +16,7 @@ def app():
     app = create_app({
         'TESTING': True,
         'DATABASE': db_path,
+       'WTF_CSRF_ENABLED': False,  # Disable CSRF protection for testing
     })
 
     with app.app_context():
@@ -30,7 +31,11 @@ def app():
 
 @pytest.fixture
 def client(app):
-    return app.test_client()
+    # Ensure the client handles file uploads and follows redirects
+    app.config['TESTING'] = True
+    app.config['WTF_CSRF_ENABLED'] = False
+    client = app.test_client()
+    return client
 
 @pytest.fixture
 def runner(app):

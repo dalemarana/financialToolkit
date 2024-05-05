@@ -63,24 +63,24 @@ def upload():
     if request.method == 'POST':
         # Check if the post request has the file part
         if 'file' not in request.files:
-            flash('No file part')
+            flash('No selected file', 'error')
             return redirect(request.url)
         file = request.files['file']
         
         # If the user does not select a file, the browser submits an
         # empty file without a filename
         if file.filename == '':
-            flash('No selected file')
-            return redirect(request.url)
-
-        
-        # Check if the file size is within the allowed limit
-        if len(file.read()) > current_app.config['MAX_CONTENT_LENGTH']:
-            flash('File exceeds the allowed limit.')
+            flash('No selected file', 'error')
             return redirect(request.url)
 
         # Check if file is pdf
-        if allowed_file(file.filename):
+        if file and allowed_file(file.filename):
+
+            # Check if the file size is within the allowed limit
+            if len(file.read()) > current_app.config['MAX_CONTENT_LENGTH']:
+                flash('File exceeds the allowed limit.')
+                return redirect(request.url)
+            
             # Check pdf signature
             file.seek(0)
             file_type = from_buffer(file.read(2048))
@@ -186,7 +186,7 @@ def upload():
                 ' VALUES (?, ?, ?)', (g.user['id'], 'FILE UPLOAD', '{} has NOT been uploaded'.format(file.filename))
             )
             db.commit()
-
+            flash('Invalid file')
             return jsonify({'error': 'Upload Error.'}), 400
 
     

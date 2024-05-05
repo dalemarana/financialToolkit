@@ -38,7 +38,11 @@ def test_register(client, app):
     ('a', '', '', '', '', '', '', '', '', '', '', '', '', b'All fields are required.'),
     ('a', 'a', '', '', '', '', '', '', '', '', '', '', '', b'Passwords do not match.'),
     ('user11', 'password1', 'password1', 'user1@example.com', '1234567890', 'Doe', 'Jane', '1990-01-01', 'Female', 'American', 'New York', 'Software Engineer', 'Yes', b'Username or email address is already registered.'),
-))
+    # New test case for password and confirmation mismatch
+    ('user12', 'password1', 'password2', 'user2@example.com', '9876543210', 'Doe', 'John', '1995-05-05', 'Male', 'Canadian', 'Toronto', 'Doctor', 'Yes', b'Passwords do not match.'),
+    # New test case for IntegrityError
+    # ('new_user', 'password', 'password', 'new_user@example.com', '1234567890', 'Doe', 'John', '1990-01-01', 'Male', 'American', 'New York', 'Software Engineer', 'Yes', b'Failed to register. Please contact admin.'),
+    ))
 def test_register_validate_input(
     client, username, password, confirmation, email, contact_number, 
     last_name, first_name, birth_date, gender, nationality, residence, 
