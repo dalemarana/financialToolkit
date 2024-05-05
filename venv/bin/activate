@@ -38,7 +38,7 @@ deactivate () {
 # unset irrelevant variables
 deactivate nondestructive
 
-VIRTUAL_ENV="/Users/dalemarana/Documents/GitHub/personal_finance/front_end/venv"
+VIRTUAL_ENV="/Users/dalemarana/Documents/code_projects/python/flask/personal_finance/front_end/venv"
 export VIRTUAL_ENV
 
 _OLD_VIRTUAL_PATH="$PATH"

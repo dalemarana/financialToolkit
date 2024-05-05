@@ -1,3 +1,7 @@
+## ACTIVATING VIRTUAL ENVIRONMENT
+
+source venv/bin/activate
+
 ## INITIALIZING THE APP
 
 flask --app finassist_f run
@@ -11,3 +15,14 @@ flask --app finassist_f run
 flask --app proto2/finassist init-db
 
 
+## MAKING THE PROJECT INSTALLABLE
+
+pip install -e .
+
+note: check pyproject.toml for the revision details. 
+provide additional details as required.
+
+
+## RUNNING TESTS
+
+pytest

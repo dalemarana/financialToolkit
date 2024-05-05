@@ -2,7 +2,7 @@ import functools
 import csv
 
 from flask import(
-    Blueprint, flash, g, redirect, render_template, request, session, url_for, current_app
+    Blueprint, flash, g, jsonify, redirect, render_template, request, session, url_for, current_app
 )
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -47,57 +47,38 @@ def register():
         db = get_db()
         error = None
 
-         # Server check for required fields
-        if not username:
-            error = 'Username is required.'
-        elif not password:
-            error = 'Password is required.'
-        elif not email:
-            error = 'Email Address is required.'
-        elif not last_name:
-            error = 'Last name is required.'
-        elif not first_name:
-            error = 'First name is required.'
-        elif not birth_date:
-            error = 'Birth date is required.'
-        elif not gender:
-            error = 'Gender field is required.'
-        elif not consent:
-            error = 'You must agree with the terms and conditions.'
-        # Check if password and confirmation is matching
-        elif confirmation != password:
-            error = 'Password is not matched.'
-    
-        if error is None:
-            # Check if username already exists
-            username_check = db.execute(
-                "SELECT * FROM users WHERE username = ?", (username,)
-            ).fetchone()
-            if username_check is not None:
-                error = 'User {} is already registered.'.format(username)
-            # Check if email already exists
-            email_check = db.execute(
-                "SELECT * FROM users WHERE email = ?", (email,)
-            ).fetchone()
-            if email_check is not None:
-                error = 'Email address {} is already registered.'.format(email)
 
-            try: 
+        # The error message is updated to catch various scenarios, 
+        # including missing fields, password mismatch, and existing username/email.
+        # Server check for required fields
+        if not all([username, password, confirmation, email, last_name, first_name, birth_date, gender, consent]):
+            error = 'All fields are required.'
+        # Check if password and confirmation match
+        elif confirmation != password:
+            error = 'Passwords do not match.'
+        else:
+            # A single SQL query checks if the username or email already exists in the database.
+            # Check if username or email already exists
+            existing_user = db.execute(
+                "SELECT id FROM users WHERE username = ? OR email = ?", (username, email)
+            ).fetchone()
+            if existing_user:
+                error = 'Username or email address is already registered.'
+        
+        # The registration process is wrapped in a try-except block to handle database integrity errors gracefully.
+        if error is None:
+            try:
                 db.execute(
                     "INSERT INTO users (username, password, email, contact_number, last_name, first_name, birth_date, gender, nationality, residence, occupation, consent)"
-                    " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (username, generate_password_hash(password), email, contact_number, 
-                    last_name, first_name, birth_date, gender, nationality, residence, occupation, consent)
+                    " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (username, generate_password_hash(password), email, contact_number,
+                                                                     last_name, first_name, birth_date, gender, nationality, residence, occupation, consent)
                 )
                 db.commit()
-            except db.IntegrityError:
-                error = "Failed to register. Please contact admin."
-            else:
                 flash('Registration Successful. Please login.')
                 # Insert into user logs
                 user_id = db.execute(
                     'SELECT id FROM users WHERE username = ?', (username,)
                 ).fetchone()
-                
                 db.execute(
                     'INSERT INTO logs (user_id, action_type, action_to)'
                     ' VALUES (?, ?, ?)', (user_id['id'], 'REGISTRATION', '{} registered successfully'.format(username))
@@ -105,6 +86,9 @@ def register():
                 db.commit()
 
                 return redirect(url_for("auth.login"))
+            except db.IntegrityError:
+                error = "Failed to register. Please contact admin."
+        
         
         flash(error)
     
@@ -128,14 +112,14 @@ def login():
         ).fetchone()
 
         if user is None:
-            error = 'Incorrect username.'
+            error = 'Incorrect username or password.'
             db.execute(
                 'INSERT INTO logs (user_id, action_type, action_to)'
                 ' VALUES (?, ?, ?)', (username, 'LOGIN', '{} login failed. error: {}'.format(username, error))
             )
             db.commit()
         elif not check_password_hash(user['password'], password):
-            error = 'Incorrect password.'
+            error = 'Incorrect username or password.'
             db.execute(
                 'INSERT INTO logs (user_id, action_type, action_to)'
                 ' VALUES (?, ?, ?)', (user['id'], 'LOGIN', '{} login failed. error: {}'.format(user['username'], error))
