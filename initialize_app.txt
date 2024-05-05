@@ -26,3 +26,9 @@ provide additional details as required.
 ## RUNNING TESTS
 
 pytest
+
+
+## TO MEASURE THE COVERAGE OF THE TEST CODE
+coverage run -m pytest
+
+html coverage

@@ -2,6 +2,7 @@ import os
 import pytest
 from flask import url_for
 
+## Test for Amex - credit card
 def test_upload_valid_pdf(client, auth, app):
     auth.login()
     file_path = os.path.join(os.path.dirname(__file__), 'test_files', 'valid.pdf')
@@ -19,4 +20,3 @@ def test_upload_valid_pdf(client, auth, app):
     assert '3 transactions added.' in data['message']
 
 # Add more test cases for different scenarios...
-
