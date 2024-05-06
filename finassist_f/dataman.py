@@ -103,7 +103,7 @@ def index():
         flash('NO UPLOADED TRANSACTIONS')
         return render_template('dataman/index.html')
         
-    print('ok')
+    # print('ok')
     return render_template('dataman/index.html', transactions=transactions, table_headers=TABLE_HEADERS, all_item_types=all_item_types)
 
 

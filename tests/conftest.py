@@ -46,6 +46,7 @@ class AuthActions(object):
     def __init__(self, client):
         self._client = client
         self.login_called_count = 0
+        self.logged_in_user_id = None  # Initialize logged-in user ID to None
 
     def login(self, username='test', password='test'):
         self.login_called_count += 1

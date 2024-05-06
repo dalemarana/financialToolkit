@@ -205,6 +205,8 @@ def pdfparse(file, file_id, date_format, year):
         for page in pdf.pages:
             text = page.extract_text()
             transaction_pattern = DATE_PATTERN[date_format][0]
+            if transaction_pattern is None:
+                raise ValueError('Invalid date format')
             transactions = []
             transaction_number = 0
             for row in text.split('\n'):
@@ -222,6 +224,8 @@ def pdfparse(file, file_id, date_format, year):
                         transaction_date = date.strftime('%Y-%m-%d')
 
                         transaction_dict['transaction_date'] = transaction_date
+
+
                     except ValueError:
                         transaction_details[0] = transaction_details[0][:2]
                         transaction_details[1] = transaction_details[1][:3]
@@ -232,12 +236,9 @@ def pdfparse(file, file_id, date_format, year):
                             transaction_date = date.strftime('%Y-%m-%d')
                             transaction_dict['transaction_date'] = transaction_date
                             transaction_details[:4] = ['_'.join(transaction_details[:4])]
-                        except ValueError:
-                            pass
+                        except ValueError as exc:
+                            raise ValueError("Invalid date format") from exc
                     
-
-
-
                     # Change amount data to float
                     elements = len(transaction_details)
                     try:
@@ -269,9 +270,11 @@ def pdfparse(file, file_id, date_format, year):
                         db.commit()
 
                         transaction_number += 1
-                 
+                
                     except ValueError:
-                        pass         
+                        raise ValueError("Invalid transaction amount format")
+         
+    
     return
 
 
