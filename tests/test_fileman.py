@@ -7,16 +7,17 @@ import pytest
 
 from finassist_f import fileman
 
-FILE_PATH = os.path.join(os.path.dirname(__file__), 'test_files', 'valid.pdf')
+FILE_PATH_CC_AMEX = os.path.join(os.path.dirname(__file__), 'test_files', 'valid-amex.pdf')
+FILE_PATH_CC_HSBC = os.path.join(os.path.dirname(__file__), 'test_files', 'valid-cc-hsbc.pdf')
 
 ## Test for Amex - credit card
-def test_upload_valid_pdf(client, auth, app):
+def test_upload_valid_amex_pdf(client, auth, app):
     auth.login()
-    with open(FILE_PATH, 'rb') as file:
+    with open(FILE_PATH_CC_AMEX, 'rb') as file:
         with app.test_request_context():
             response = client.post(
                 url_for('fileman.upload'),
-                data={'file': file, 'card_provider': 'Amex', 'card_type': 'credit_card', 'date_format': 'mmm_DD', 'statement_year': '2023'}
+                data={'file': file, 'card_provider': 'Amex', 'card_type': 'credit_card', 'date_format': 'mmm_DD', 'statement_year': '2024'}
             )
     assert response.status_code == 200
     # Check if the response contains the expected message in JSON format
@@ -24,6 +25,24 @@ def test_upload_valid_pdf(client, auth, app):
     data = response.get_json()
     assert 'message' in data
     assert '3 transactions added.' in data['message']
+
+
+## Test for HSBC - credit card
+def test_upload_valid_hsbc_pdf(client, auth, app):
+    auth.login()
+    with open(FILE_PATH_CC_HSBC, 'rb') as file:
+        with app.test_request_context():
+            response = client.post(
+                url_for('fileman.upload'),
+                data={'file': file, 'card_provider': 'Hsbc', 'card_type': 'credit_card', 'date_format': 'DD_mmm', 'statement_year': '2024'}
+            )
+    assert response.status_code == 200
+    # Check if the response contains the expected message in JSON format
+    assert response.is_json
+    data = response.get_json()
+    assert 'message' in data
+    assert '4 transactions added.' in data['message']
+
 
 
 ## Test for no selected file. Though code checks are integrated on the front end code

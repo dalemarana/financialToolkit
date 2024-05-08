@@ -19,7 +19,8 @@ ALLOWED_EXTENSIONS = {'pdf'}
 DATE_PATTERN = {
     'mmm_DD':[r'[A-Za-z]{3}\d{1,2}', '%b%d'], 
     'DD-mmm-YYYY': [r'\d{1,2}-[A-Za-z]{3}-\d{4}', '%d-%b-%Y'], 
-    'DD_mmm': [r'\d{1,2} [A-Za-z]{3}', '%d_%b']
+    # 'DD_mmm': [r'\d{1,2} [A-Za-z]{3}', '%d_%b'],
+    'DD_mmm': [r'\d{2}\s(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s\d{2}', '%d_%b'],
 }
 
 PAYMENT_PHRASE = [
