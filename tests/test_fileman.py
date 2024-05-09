@@ -157,7 +157,6 @@ def test_pdfparse_value_error(client, auth, app):
                 # Check if the exception is due to invalid date format
                 assert str(e) == 'Invalid date format'
 
-    # print(response.data)
     # Assert that the response contains the appropriate error message
     assert b'Invalid' in response.data
     os.remove('example.pdf')
